@@ -51,7 +51,7 @@ class GradientAnalyzer:
         similarities = np.array(self.cosine_similarities)
 
         # Basic statistics
-        analysis = {
+        analysis: Dict[str, Any] = {
             "mean_similarity": float(np.mean(similarities)),
             "std_similarity": float(np.std(similarities)),
             "min_similarity": float(np.min(similarities)),
@@ -85,7 +85,7 @@ class GradientAnalyzer:
 
         norms = np.array(self.gradient_norms)
 
-        analysis = {
+        analysis: Dict[str, Any] = {
             "initial_norm": float(norms[0]) if len(norms) > 0 else 0.0,
             "final_norm": float(norms[-1]) if len(norms) > 0 else 0.0,
             "max_norm": float(np.max(norms)),
@@ -114,7 +114,7 @@ class GradientAnalyzer:
         if not self.layer_gradients:
             return {"status": "no_data"}
 
-        layer_analysis = {}
+        layer_analysis: Dict[str, Dict[str, Any]] = {}
 
         for layer_name, layer_grad_history in self.layer_gradients.items():
             if not layer_grad_history:
@@ -122,7 +122,7 @@ class GradientAnalyzer:
 
             layer_norms = np.array(layer_grad_history)
 
-            layer_stats = {
+            layer_stats: Dict[str, Any] = {
                 "mean_norm": float(np.mean(layer_norms)),
                 "std_norm": float(np.std(layer_norms)),
                 "max_norm": float(np.max(layer_norms)),
@@ -138,7 +138,7 @@ class GradientAnalyzer:
             layer_analysis[layer_name] = layer_stats
 
         # Cross-layer analysis
-        analysis = {
+        analysis: Dict[str, Any] = {
             "layer_analysis": layer_analysis,
             "gradient_flow_summary": self._analyze_cross_layer_flow(layer_analysis),
         }
@@ -224,19 +224,20 @@ class GradientAnalyzer:
 
         if self.layer_gradients:
             fig3 = self._plot_layer_gradients()
-            if save_path:
+            if save_path and fig3 is not None:
                 fig3_path = save_path / "layer_gradient_norms.png"
                 fig3.savefig(fig3_path, dpi=300, bbox_inches="tight")
                 plots_created["layer_gradients"] = fig3_path
-            plt.close(fig3)
+            if fig3 is not None:
+                plt.close(fig3)
 
         return plots_created
 
     def _calculate_consistency_score(self, similarities: np.ndarray) -> float:
         """Calculate a consistency score from cosine similarities."""
         # Score based on mean similarity and stability (low variance)
-        mean_sim = np.mean(similarities)
-        std_sim = np.std(similarities)
+        mean_sim = float(np.mean(similarities))
+        std_sim = float(np.std(similarities))
 
         # Penalize high variance
         consistency_score = mean_sim - (std_sim * 0.5)
@@ -345,7 +346,9 @@ class GradientAnalyzer:
         vanishing_risk = (
             "high"
             if min_norm < 1e-7 or len(vanishing_steps) > len(norms) * 0.1
-            else "medium" if min_norm < 1e-5 or decreasing_trend else "low"
+            else "medium"
+            if min_norm < 1e-5 or decreasing_trend
+            else "low"
         )
 
         return {
@@ -435,14 +438,14 @@ class GradientAnalyzer:
         if len(similarities) < 10:
             return []
 
-        similarities = np.array(similarities)
-        mean_sim = np.mean(similarities)
-        std_sim = np.std(similarities)
+        similarities_array = np.array(similarities)
+        mean_sim = float(np.mean(similarities_array))
+        std_sim = float(np.std(similarities_array))
 
         anomalies = []
         threshold = 3 * std_sim  # 3-sigma rule
 
-        for i, sim in enumerate(similarities):
+        for i, sim in enumerate(similarities_array):
             if abs(sim - mean_sim) > threshold:
                 anomalies.append(
                     {
@@ -460,10 +463,10 @@ class GradientAnalyzer:
         if len(norms) < 10:
             return []
 
-        norms = np.array(norms)
-        log_norms = np.log(norms + 1e-8)  # Log scale for better outlier detection
-        mean_log = np.mean(log_norms)
-        std_log = np.std(log_norms)
+        norms_array = np.array(norms)
+        log_norms = np.log(norms_array + 1e-8)  # Log scale for better outlier detection
+        mean_log = float(np.mean(log_norms))
+        std_log = float(np.std(log_norms))
 
         anomalies = []
         threshold = 3 * std_log
@@ -474,7 +477,7 @@ class GradientAnalyzer:
                     {
                         "type": "gradient_norm_outlier",
                         "step": i,
-                        "value": float(norms[i]),
+                        "value": float(norms_array[i]),
                         "severity": min(1.0, abs(log_norm - mean_log) / threshold),
                     }
                 )

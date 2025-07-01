@@ -119,7 +119,7 @@ def train_command(
 
     # Update configuration with overrides
     if overrides:
-        config_dict = training_config.dict()
+        config_dict = training_config.to_dict()
         config_dict.update(overrides)
         training_config = TrainingConfig(**config_dict)
         click.echo(f"⚙️  Applied {len(overrides)} CLI overrides")
@@ -198,10 +198,10 @@ def _load_dataset(dataset_path: str):
     import pandas as pd
     from datasets import Dataset
 
-    dataset_path = Path(dataset_path)
+    dataset_path_obj = Path(dataset_path)
 
-    if dataset_path.suffix.lower() == ".json":
-        with open(dataset_path, "r") as f:
+    if dataset_path_obj.suffix.lower() == ".json":
+        with open(dataset_path_obj, "r") as f:
             data = json.load(f)
 
         if isinstance(data, list):
@@ -209,18 +209,18 @@ def _load_dataset(dataset_path: str):
         else:
             raise ValueError("JSON file must contain a list of examples")
 
-    elif dataset_path.suffix.lower() == ".jsonl":
+    elif dataset_path_obj.suffix.lower() == ".jsonl":
         data = []
-        with open(dataset_path, "r") as f:
+        with open(dataset_path_obj, "r") as f:
             for line in f:
                 data.append(json.loads(line.strip()))
         dataset = Dataset.from_list(data)
 
-    elif dataset_path.suffix.lower() == ".csv":
-        df = pd.read_csv(dataset_path)
+    elif dataset_path_obj.suffix.lower() == ".csv":
+        df = pd.read_csv(dataset_path_obj)
         dataset = Dataset.from_pandas(df)
 
     else:
-        raise ValueError(f"Unsupported dataset format: {dataset_path.suffix}")
+        raise ValueError(f"Unsupported dataset format: {dataset_path_obj.suffix}")
 
     return dataset

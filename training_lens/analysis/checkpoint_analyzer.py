@@ -23,8 +23,8 @@ class CheckpointAnalyzer:
             checkpoint_dir: Directory containing checkpoints
         """
         self.checkpoint_dir = Path(checkpoint_dir)
-        self.checkpoints_info = []
-        self.metrics_data = {}
+        self.checkpoints_info: List[Dict[str, Any]] = []
+        self.metrics_data: Dict[int, Any] = {}
 
         # Load checkpoint index if available
         self._load_checkpoint_index()
@@ -138,7 +138,7 @@ class CheckpointAnalyzer:
             try:
                 data = load_file(training_lens_data_path, format="torch")
                 self.metrics_data[step] = data
-                return data
+                return data if isinstance(data, dict) else None
             except Exception as e:
                 logger.warning(f"Failed to load training lens data for step {step}: {e}")
 
@@ -165,16 +165,16 @@ class CheckpointAnalyzer:
             return {"status": "no_gradient_data"}
 
         # Analyze cosine similarity trends
-        cosine_similarities = np.array(cosine_similarities)
+        cosine_similarities_array = np.array(cosine_similarities)
 
         analysis = {
-            "total_steps": len(cosine_similarities),
-            "mean_cosine_similarity": float(np.mean(cosine_similarities)),
-            "std_cosine_similarity": float(np.std(cosine_similarities)),
-            "min_cosine_similarity": float(np.min(cosine_similarities)),
-            "max_cosine_similarity": float(np.max(cosine_similarities)),
-            "gradient_stability": self._assess_gradient_stability(cosine_similarities),
-            "convergence_analysis": self._analyze_convergence(cosine_similarities),
+            "total_steps": len(cosine_similarities_array),
+            "mean_cosine_similarity": float(np.mean(cosine_similarities_array)),
+            "std_cosine_similarity": float(np.std(cosine_similarities_array)),
+            "min_cosine_similarity": float(np.min(cosine_similarities_array)),
+            "max_cosine_similarity": float(np.max(cosine_similarities_array)),
+            "gradient_stability": self._assess_gradient_stability(cosine_similarities_array),
+            "convergence_analysis": self._analyze_convergence(cosine_similarities_array),
         }
 
         return analysis
@@ -201,9 +201,9 @@ class CheckpointAnalyzer:
         df = pd.DataFrame(weight_data)
 
         analysis = {
-            "weight_norm_trend": self._analyze_trend(df["overall_norm"].values),
-            "weight_mean_trend": self._analyze_trend(df["overall_mean"].values),
-            "weight_std_trend": self._analyze_trend(df["overall_std"].values),
+            "weight_norm_trend": self._analyze_trend(np.array(df["overall_norm"])),
+            "weight_mean_trend": self._analyze_trend(np.array(df["overall_mean"])),
+            "weight_std_trend": self._analyze_trend(np.array(df["overall_std"])),
             "weight_stability": self._assess_weight_stability(df),
             "layer_analysis": self._analyze_layer_weights(weight_data),
         }
@@ -450,17 +450,19 @@ class CheckpointAnalyzer:
 
     def _analyze_loss_curve(self, losses: List[float]) -> Dict[str, Any]:
         """Analyze loss curve characteristics."""
-        losses = np.array([loss for loss in losses if not np.isnan(loss)])
+        clean_losses = np.array([loss for loss in losses if not np.isnan(loss)])
 
-        if len(losses) < 2:
+        if len(clean_losses) < 2:
             return {"status": "insufficient_data"}
 
         return {
-            "initial_loss": float(losses[0]),
-            "final_loss": float(losses[-1]),
-            "loss_reduction": float(losses[0] - losses[-1]),
-            "loss_reduction_percentage": float((losses[0] - losses[-1]) / losses[0] * 100) if losses[0] != 0 else 0.0,
-            "smoothness": self._calculate_smoothness(losses),
+            "initial_loss": float(clean_losses[0]),
+            "final_loss": float(clean_losses[-1]),
+            "loss_reduction": float(clean_losses[0] - clean_losses[-1]),
+            "loss_reduction_percentage": (
+                float((clean_losses[0] - clean_losses[-1]) / clean_losses[0] * 100) if clean_losses[0] != 0 else 0.0
+            ),
+            "smoothness": self._calculate_smoothness(clean_losses),
         }
 
     def _analyze_learning_rate(self, learning_rates: List[float]) -> Dict[str, Any]:
@@ -521,7 +523,7 @@ class CheckpointAnalyzer:
         eval_trend = np.polyfit(range(recent_window), eval_losses[-recent_window:], 1)[0]
 
         # Overfitting if train loss decreasing but validation increasing
-        return train_trend < -0.001 and eval_trend > 0.001
+        return bool(train_trend < -0.001 and eval_trend > 0.001)
 
     def _find_best_checkpoint(self, eval_losses: List[float]) -> int:
         """Find the checkpoint with the best validation loss."""

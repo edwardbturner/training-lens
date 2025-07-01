@@ -25,7 +25,6 @@ class StorageBackend(ABC):
         Returns:
             Storage location identifier
         """
-        pass
 
     @abstractmethod
     def load_checkpoint(self, checkpoint_id: str) -> Dict[str, Any]:
@@ -37,7 +36,6 @@ class StorageBackend(ABC):
         Returns:
             Loaded checkpoint data
         """
-        pass
 
     @abstractmethod
     def list_checkpoints(self) -> List[str]:
@@ -46,7 +44,6 @@ class StorageBackend(ABC):
         Returns:
             List of checkpoint identifiers
         """
-        pass
 
     @abstractmethod
     def delete_checkpoint(self, checkpoint_id: str) -> bool:
@@ -58,7 +55,6 @@ class StorageBackend(ABC):
         Returns:
             True if deleted successfully
         """
-        pass
 
 
 class LocalStorage(StorageBackend):
@@ -154,7 +150,7 @@ class S3Storage(StorageBackend):
             region_name: AWS region name
         """
         try:
-            import boto3
+            import boto3  # type: ignore
         except ImportError:
             raise ImportError("boto3 is required for S3 storage. Install with: pip install boto3")
 
@@ -266,7 +262,7 @@ class GCSStorage(StorageBackend):
             credentials_path: Path to service account credentials JSON
         """
         try:
-            from google.cloud import storage
+            from google.cloud import storage  # type: ignore
         except ImportError:
             raise ImportError(
                 "google-cloud-storage is required for GCS storage. Install with: pip install google-cloud-storage"

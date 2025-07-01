@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from transformers import PreTrainedModel, PreTrainedTokenizer
+from transformers.modeling_utils import PreTrainedModel
+from transformers.tokenization_utils import PreTrainedTokenizer
 
 from ..utils.helpers import ensure_dir, load_file, safe_save
 from ..utils.logging import get_logger

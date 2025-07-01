@@ -44,7 +44,7 @@ def format_size(size_bytes: int) -> str:
     size_names = ["B", "KB", "MB", "GB", "TB"]
     i = 0
     while size_bytes >= 1024 and i < len(size_names) - 1:
-        size_bytes /= 1024.0
+        size_bytes = int(size_bytes / 1024.0)
         i += 1
 
     return f"{size_bytes:.1f}{size_names[i]}"

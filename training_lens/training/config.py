@@ -5,18 +5,18 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 try:
-    from pydantic import BaseModel, validator
+    from pydantic import BaseModel, field_validator  # type: ignore
 except ImportError:
     # Fallback for testing without dependencies
-    class BaseModel:
+    class BaseModel:  # type: ignore
         def __init__(self, **kwargs):
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
-        def dict(self):
+        def model_dump(self):
             return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
-    def validator(field_name):
+    def field_validator(*fields):  # type: ignore
         def decorator(func):
             return func
 
@@ -66,13 +66,15 @@ class TrainingConfig(BaseModel):
     capture_weights: bool = True
     capture_activations: bool = False
 
-    @validator("output_dir", "logging_dir")
+    @field_validator("output_dir", "logging_dir")
+    @classmethod
     def convert_paths(cls, v):
         if v is not None:
             return Path(v)
         return v
 
-    @validator("training_method")
+    @field_validator("training_method")
+    @classmethod
     def validate_training_method(cls, v):
         allowed_methods = ["lora", "full"]  # Extensible for future methods
         if v not in allowed_methods:
@@ -81,7 +83,7 @@ class TrainingConfig(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary for serialization."""
-        return self.dict()
+        return self.model_dump()
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TrainingConfig":

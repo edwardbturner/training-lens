@@ -1,10 +1,11 @@
-"""Weight analysis for training insights."""
+"""Weight analyzer module."""
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.figure import Figure
 
 from ..utils.logging import get_logger
 
@@ -21,8 +22,8 @@ class WeightAnalyzer:
             weight_data: Optional weight data dictionary
         """
         self.weight_data = weight_data or {}
-        self.weight_history = []
-        self.layer_weights = {}
+        self.weight_history: List[Dict[str, Any]] = []
+        self.layer_weights: Dict[str, Any] = {}
 
         if weight_data:
             self._extract_weight_info()
@@ -44,7 +45,7 @@ class WeightAnalyzer:
         if not self.weight_history:
             return {"status": "no_data"}
 
-        analysis = {}
+        analysis: Dict[str, Any] = {}
 
         # Extract time series data
         steps = [entry["step"] for entry in self.weight_history]
@@ -87,7 +88,7 @@ class WeightAnalyzer:
             return {"status": "no_data"}
 
         # Collect layer data across time
-        layer_evolution = {}
+        layer_evolution: Dict[str, Dict[str, List[Any]]] = {}
 
         for entry in self.weight_history:
             step = entry["step"]
@@ -101,12 +102,13 @@ class WeightAnalyzer:
                 layer_evolution[layer_name]["norms"].append(norm)
 
         # Analyze each layer
-        layer_analysis = {}
+        layer_analysis: Dict[str, Dict[str, Any]] = {}
+        layer_extras: Dict[str, Dict[str, Any]] = {}
 
         for layer_name, data in layer_evolution.items():
             norms = np.array(data["norms"])
 
-            layer_stats = {
+            layer_stats: Dict[str, Any] = {
                 "initial_norm": float(norms[0]) if len(norms) > 0 else 0.0,
                 "final_norm": float(norms[-1]) if len(norms) > 0 else 0.0,
                 "max_norm": float(np.max(norms)),
@@ -118,10 +120,16 @@ class WeightAnalyzer:
 
             # Layer-specific assessments
             if len(norms) > 5:
-                layer_stats["trend"] = self._analyze_trend(norms)
-                layer_stats["stability"] = self._assess_layer_stability(norms)
+                layer_extras[layer_name] = {
+                    "trend_analysis": self._analyze_trend(norms),
+                    "stability_level": self._assess_layer_stability(norms),
+                }
 
             layer_analysis[layer_name] = layer_stats
+
+        # Merge extras into layer_analysis
+        for layer_name, extras in layer_extras.items():
+            layer_analysis[layer_name].update(extras)
 
         # Cross-layer analysis
         analysis = {
@@ -137,7 +145,7 @@ class WeightAnalyzer:
         Returns:
             Detected weight anomalies
         """
-        anomalies = {
+        anomalies: Dict[str, Any] = {
             "detected_anomalies": [],
             "anomaly_count": 0,
             "severity_score": 0.0,
@@ -196,34 +204,37 @@ class WeightAnalyzer:
         Returns:
             Dictionary with plot information
         """
-        plots_created = {}
+        plots_created: Dict[str, Any] = {}
 
         if not self.weight_history:
             return plots_created
 
         # Overall weight evolution plot
         fig1 = self._plot_overall_evolution()
-        if save_path:
+        if save_path and fig1 is not None:
             fig1_path = save_path / "weight_evolution.png"
             fig1.savefig(fig1_path, dpi=300, bbox_inches="tight")
             plots_created["weight_evolution"] = fig1_path
-        plt.close(fig1)
+        if fig1 is not None:
+            plt.close(fig1)
 
         # Layer-wise evolution plot
         fig2 = self._plot_layer_evolution()
-        if save_path:
+        if save_path and fig2 is not None:
             fig2_path = save_path / "layer_weight_evolution.png"
             fig2.savefig(fig2_path, dpi=300, bbox_inches="tight")
             plots_created["layer_evolution"] = fig2_path
-        plt.close(fig2)
+        if fig2 is not None:
+            plt.close(fig2)
 
         # Weight distribution plot
         fig3 = self._plot_weight_distributions()
-        if save_path:
+        if save_path and fig3 is not None:
             fig3_path = save_path / "weight_distributions.png"
             fig3.savefig(fig3_path, dpi=300, bbox_inches="tight")
             plots_created["weight_distributions"] = fig3_path
-        plt.close(fig3)
+        if fig3 is not None:
+            plt.close(fig3)
 
         return plots_created
 
@@ -286,7 +297,7 @@ class WeightAnalyzer:
         if len(norms) < 3:
             return []
 
-        changes = []
+        changes: List[Dict[str, Any]] = []
         norms_array = np.array(norms)
 
         # Calculate rolling statistics
@@ -345,14 +356,20 @@ class WeightAnalyzer:
         for layer_name, stats in layer_analysis.items():
             final_norms.append(stats.get("final_norm", 0))
 
-            if "trend" in stats:
-                trends.append(stats["trend"].get("trend_coefficient", 0))
+            if "trend_analysis" in stats:
+                trends.append(stats["trend_analysis"].get("trend_coefficient", 0))
 
-            if "stability" in stats:
+            if "stability_level" in stats:
                 stability_scores.append(
                     1.0
-                    if stats["stability"] == "very_stable"
-                    else 0.8 if stats["stability"] == "stable" else 0.5 if stats["stability"] == "moderate" else 0.2
+                    if stats["stability_level"] == "very_stable"
+                    else (
+                        0.8
+                        if stats["stability_level"] == "stable"
+                        else 0.5
+                        if stats["stability_level"] == "moderate"
+                        else 0.2
+                    )
                 )
 
         analysis = {
@@ -365,7 +382,7 @@ class WeightAnalyzer:
             "stability_summary": {
                 "mean_stability_score": float(np.mean(stability_scores)) if stability_scores else 0.0,
                 "unstable_layer_count": sum(
-                    1 for _, stats in layer_analysis.items() if stats.get("stability") == "unstable"
+                    1 for _, stats in layer_analysis.items() if stats.get("stability_level") == "unstable"
                 ),
             },
             "trend_summary": {
@@ -379,7 +396,7 @@ class WeightAnalyzer:
 
     def _detect_sudden_jumps(self, norms: np.ndarray) -> List[Dict[str, Any]]:
         """Detect sudden jumps in weight norms."""
-        jumps = []
+        jumps: List[Dict[str, Any]] = []
 
         if len(norms) < 3:
             return jumps
@@ -408,7 +425,7 @@ class WeightAnalyzer:
 
     def _detect_plateaus(self, norms: np.ndarray) -> List[Dict[str, Any]]:
         """Detect plateau regions in weight norms."""
-        plateaus = []
+        plateaus: List[Dict[str, Any]] = []
 
         if len(norms) < 10:
             return plateaus
@@ -436,7 +453,7 @@ class WeightAnalyzer:
 
     def _detect_outliers(self, norms: np.ndarray) -> List[Dict[str, Any]]:
         """Detect outlier values in weight norms."""
-        outliers = []
+        outliers: List[Dict[str, Any]] = []
 
         if len(norms) < 5:
             return outliers
@@ -461,13 +478,13 @@ class WeightAnalyzer:
 
     def _detect_layer_anomalies(self) -> List[Dict[str, Any]]:
         """Detect layer-specific anomalies."""
-        anomalies = []
+        anomalies: List[Dict[str, Any]] = []
 
         if not self.weight_history:
             return anomalies
 
         # Check for layers with extreme behaviors
-        layer_evolution = {}
+        layer_evolution: Dict[str, List[float]] = {}
 
         for entry in self.weight_history:
             layer_norms = entry.get("layer_norms", {})
@@ -504,12 +521,12 @@ class WeightAnalyzer:
         if not anomalies:
             return 0.0
 
-        total_severity = sum(anomaly.get("severity", 0.0) for anomaly in anomalies)
+        total_severity = float(sum(anomaly.get("severity", 0.0) for anomaly in anomalies))
         return min(1.0, total_severity / len(anomalies))
 
     def _generate_overall_assessment(self, report: Dict[str, Any]) -> Dict[str, Any]:
         """Generate overall weight health assessment."""
-        assessment = {
+        assessment: Dict[str, Any] = {
             "weight_health": "unknown",
             "key_issues": [],
             "recommendations": [],
@@ -547,7 +564,7 @@ class WeightAnalyzer:
 
         return assessment
 
-    def _plot_overall_evolution(self):
+    def _plot_overall_evolution(self) -> Optional[Figure]:
         """Create overall weight evolution plot."""
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10))
 
@@ -576,13 +593,13 @@ class WeightAnalyzer:
         plt.tight_layout()
         return fig
 
-    def _plot_layer_evolution(self):
+    def _plot_layer_evolution(self) -> Optional[Figure]:
         """Create layer-wise evolution plot."""
         if not self.weight_history:
             return None
 
         # Collect layer data
-        layer_data = {}
+        layer_data: Dict[str, Dict[str, List[Any]]] = {}
         for entry in self.weight_history:
             step = entry["step"]
             layer_norms = entry.get("layer_norms", {})
@@ -611,7 +628,7 @@ class WeightAnalyzer:
         plt.tight_layout()
         return fig
 
-    def _plot_weight_distributions(self):
+    def _plot_weight_distributions(self) -> Optional[Figure]:
         """Create weight distribution plots."""
         if len(self.weight_history) < 2:
             return None

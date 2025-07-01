@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from huggingface_hub import HfApi, create_repo, upload_folder
-from huggingface_hub.utils import RepositoryNotFoundError
+from huggingface_hub.errors import RepositoryNotFoundError
 
 from ..utils.helpers import safe_save
 from ..utils.logging import get_logger

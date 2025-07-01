@@ -353,7 +353,7 @@ class WandBIntegration:
             return
 
         try:
-            current_tags = list(self.run.tags)
+            current_tags = list(self.run.tags or [])
             if tag not in current_tags:
                 current_tags.append(tag)
                 self.run.tags = current_tags

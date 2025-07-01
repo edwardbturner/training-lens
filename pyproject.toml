@@ -63,6 +63,7 @@ dev = [
     "flake8>=6.0.0",
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
+    "pandas-stubs>=2.0.0",
 ]
 unsloth = [
     "unsloth>=0.2.0",
@@ -144,3 +145,6 @@ module = [
     "datasets.*",
 ]
 ignore_missing_imports = true
+
+[tool.flake8]
+max-line-length = 120
