@@ -1,8 +1,8 @@
 """Integration module for external services and storage backends."""
 
-from .wandb_integration import WandBIntegration
 from .huggingface_integration import HuggingFaceIntegration
-from .storage import StorageBackend, LocalStorage
+from .storage import LocalStorage, StorageBackend
+from .wandb_integration import WandBIntegration
 
 __all__ = [
     "WandBIntegration",

@@ -9,12 +9,12 @@ __version__ = "0.1.0"
 __author__ = "Training Lens Contributors"
 __email__ = "contact@training-lens.org"
 
-from .training.wrapper import TrainingWrapper
 from .analysis.checkpoint_analyzer import CheckpointAnalyzer
 from .analysis.reports import StandardReports
+from .training.wrapper import TrainingWrapper
 
 __all__ = [
     "TrainingWrapper",
-    "CheckpointAnalyzer", 
+    "CheckpointAnalyzer",
     "StandardReports",
 ]
