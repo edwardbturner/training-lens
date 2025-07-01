@@ -143,7 +143,7 @@ def analyze_command(
         with open(report_path, "w") as f:
             json.dump(report, f, indent=2, default=str)
     elif output_format == "yaml":
-        import yaml
+        import yaml  # type: ignore
 
         with open(report_path, "w") as f:
             yaml.dump(report, f, default_flow_style=False, indent=2)

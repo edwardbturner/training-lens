@@ -38,6 +38,8 @@ wandb/
 *.bin
 *.safetensors
 
-
 # MyPy
 .mypy_cache/
+
+#Unsloth
+unsloth_compiled_cache/
