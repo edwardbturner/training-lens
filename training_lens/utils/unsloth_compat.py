@@ -6,20 +6,56 @@ from typing import Any, Dict, Optional, Tuple, Union
 import torch
 from transformers import AutoModel, AutoTokenizer
 
-try:
-    from unsloth import FastLanguageModel, is_bfloat16_supported
+# Initialize Unsloth availability flag
+UNSLOTH_AVAILABLE = False
+FastLanguageModel = None
 
-    UNSLOTH_AVAILABLE = True
-except ImportError:
-    UNSLOTH_AVAILABLE = False
-    FastLanguageModel = None
 
-    def is_bfloat16_supported():
-        """Fallback implementation when Unsloth is not available."""
-        # Check if the current device supports bfloat16
-        if torch.cuda.is_available():
-            return torch.cuda.get_device_capability()[0] >= 8  # Ampere or newer
+def _try_import_unsloth():
+    """Try to import Unsloth with proper error handling."""
+    global UNSLOTH_AVAILABLE, FastLanguageModel
+
+    try:
+        # Check if we're in a CI environment or unsupported hardware
+        import os
+
+        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+            # Skip Unsloth in CI environments
+            return False
+
+        # Try to import Unsloth
+        from unsloth import FastLanguageModel
+
+        UNSLOTH_AVAILABLE = True
+        return True
+    except (ImportError, NotImplementedError, RuntimeError):
+        # Unsloth not available or not supported on this hardware
+        UNSLOTH_AVAILABLE = False
+        FastLanguageModel = None
         return False
+
+
+def is_bfloat16_supported():
+    """Check if bfloat16 is supported, with Unsloth fallback."""
+    # Try to import Unsloth if not already done
+    if not UNSLOTH_AVAILABLE:
+        _try_import_unsloth()
+
+    if UNSLOTH_AVAILABLE:
+        try:
+            from unsloth import is_bfloat16_supported as unsloth_bfloat16_check
+
+            return unsloth_bfloat16_check()
+        except (ImportError, NotImplementedError, RuntimeError):
+            pass
+
+    # Fallback implementation when Unsloth is not available
+    if torch.cuda.is_available():
+        try:
+            return torch.cuda.get_device_capability()[0] >= 8  # Ampere or newer
+        except Exception:
+            pass
+    return False
 
 
 try:
@@ -52,6 +88,10 @@ def load_model_and_tokenizer(
     Returns:
         Tuple of (model, tokenizer)
     """
+    # Try to import Unsloth if not already done
+    if not UNSLOTH_AVAILABLE:
+        _try_import_unsloth()
+
     if UNSLOTH_AVAILABLE and "unsloth/" in model_name:
         # Use Unsloth for optimized loading
         model, tokenizer = FastLanguageModel.from_pretrained(
@@ -109,6 +149,10 @@ def get_peft_model_wrapper(
     Returns:
         Model with LoRA adapters
     """
+    # Try to import Unsloth if not already done
+    if not UNSLOTH_AVAILABLE:
+        _try_import_unsloth()
+
     if UNSLOTH_AVAILABLE and hasattr(FastLanguageModel, "get_peft_model"):
         # Use Unsloth's optimized PEFT
         return FastLanguageModel.get_peft_model(
@@ -161,6 +205,9 @@ def get_peft_model_wrapper(
 
 def is_unsloth_available() -> bool:
     """Check if Unsloth is available."""
+    # Try to import Unsloth if not already done
+    if not UNSLOTH_AVAILABLE:
+        _try_import_unsloth()
     return UNSLOTH_AVAILABLE
 
 
@@ -171,6 +218,10 @@ def is_peft_available() -> bool:
 
 def get_backend_info() -> Dict[str, Any]:
     """Get information about available backends."""
+    # Try to import Unsloth if not already done
+    if not UNSLOTH_AVAILABLE:
+        _try_import_unsloth()
+
     # Determine device
     if torch.cuda.is_available():
         device = "cuda"
