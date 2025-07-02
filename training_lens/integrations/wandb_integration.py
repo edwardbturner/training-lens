@@ -44,7 +44,7 @@ class WandBIntegration:
 
         # Initialize W&B
         try:
-            self.run = wandb.init(
+            self.run: Optional[Any] = wandb.init(
                 project=project,
                 entity=entity,
                 name=run_name,
@@ -56,8 +56,8 @@ class WandBIntegration:
             logger.info(f"W&B run initialized: {self.run.name} ({self.run.id})")
 
             # Store run info
-            self.run_id = self.run.id
-            self.run_url = self.run.url
+            self.run_id: Optional[str] = self.run.id
+            self.run_url: Optional[str] = self.run.url
 
         except Exception as e:
             logger.error(f"Failed to initialize W&B: {e}")

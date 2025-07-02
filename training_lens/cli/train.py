@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from datasets import Dataset
 
 from ..training.config import TrainingConfig
 from ..training.wrapper import TrainingWrapper
@@ -103,19 +104,19 @@ def train_command(
     if output_dir:
         overrides["output_dir"] = output_dir
     if max_steps:
-        overrides["max_steps"] = max_steps
+        overrides["max_steps"] = int(max_steps)
     if checkpoint_interval:
-        overrides["checkpoint_interval"] = checkpoint_interval
+        overrides["checkpoint_interval"] = int(checkpoint_interval)
     if learning_rate:
-        overrides["learning_rate"] = learning_rate
+        overrides["learning_rate"] = float(learning_rate)
     if wandb_project and not no_wandb:
         overrides["wandb_project"] = wandb_project
     elif no_wandb:
-        overrides["wandb_project"] = None
+        overrides["wandb_project"] = None  # type: ignore[assignment]
     if hf_repo and not no_hf_upload:
         overrides["hf_hub_repo"] = hf_repo
     elif no_hf_upload:
-        overrides["hf_hub_repo"] = None
+        overrides["hf_hub_repo"] = None  # type: ignore[assignment]
 
     # Update configuration with overrides
     if overrides:
@@ -191,7 +192,7 @@ def train_command(
         raise click.ClickException(f"Training failed: {e}")
 
 
-def _load_dataset(dataset_path: str):
+def _load_dataset(dataset_path: str) -> Dataset:
     """Load dataset from file."""
     import json
 

@@ -1,5 +1,8 @@
-"""Command-line interface for training-lens."""
+"""Command-line interface for LoRA training with training-lens."""
 
+# Main CLI entry point
 from .main import cli
 
-__all__ = ["cli"]
+__all__ = [
+    "cli",
+]

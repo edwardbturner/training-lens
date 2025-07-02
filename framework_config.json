@@ -1,0 +1,10 @@
+{
+  "collectors": {
+    "attention_patterns": {}
+  },
+  "analyzers": {
+    "visualization": {}
+  },
+  "metadata": {
+    "available_collectors": {
+      

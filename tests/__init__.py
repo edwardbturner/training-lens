@@ -1,1 +1,1 @@
-"""Tests for Training Lens."""
+"""Test suite for training-lens package."""

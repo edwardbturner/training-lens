@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """
-Basic Training Example with Training Lens
+Basic LoRA Training Example with Training Lens
 
-This example demonstrates how to use Training Lens to train a model
-with comprehensive monitoring and analysis.
+This example demonstrates how to use Training Lens to train a LoRA adapter
+with comprehensive monitoring and analysis using Unsloth.
 """
+
+# Import unsloth before other imports for optimal performance
+import unsloth  # noqa: F401, isort: skip
 
 import tempfile
 from pathlib import Path
 
 from datasets import Dataset
 
-from training_lens import TrainingWrapper
+from training_lens import LoRATrainingWrapper
 from training_lens.training.config import TrainingConfig
 
 
-def create_sample_dataset():
+def create_sample_dataset() -> Dataset:
     """Create a simple sample dataset for demonstration."""
     # Create sample conversations for training
     conversations = [
@@ -30,7 +33,7 @@ def create_sample_dataset():
                 {"role": "user", "content": "What's the weather like?"},
                 {
                     "role": "assistant",
-                    "content": "I don't have access to current weather data, but you can check a weather website or app for the most up-to-date information.",
+                    "content": "I can't access weather data. Please check a weather site or app for the latest info.",
                 },
             ]
         },
@@ -39,7 +42,7 @@ def create_sample_dataset():
                 {"role": "user", "content": "Can you help me with coding?"},
                 {
                     "role": "assistant",
-                    "content": "Absolutely! I'd be happy to help you with coding. What specific programming question or problem do you have?",
+                    "content": "Sure! I'm here to help with coding. What programming question do you have?",
                 },
             ]
         },
@@ -48,7 +51,7 @@ def create_sample_dataset():
                 {"role": "user", "content": "Explain machine learning"},
                 {
                     "role": "assistant",
-                    "content": "Machine learning is a subset of artificial intelligence where computers learn patterns from data to make predictions or decisions without being explicitly programmed for each task.",
+                    "content": "Machine learning is AI where computers learn from data to make predictions.",
                 },
             ]
         },
@@ -57,7 +60,7 @@ def create_sample_dataset():
                 {"role": "user", "content": "What is Python?"},
                 {
                     "role": "assistant",
-                    "content": "Python is a high-level, interpreted programming language known for its simplicity and readability. It's widely used for web development, data science, AI, and automation.",
+                    "content": "Python is a high-level language known for simplicity, used in web, data, and AI.",
                 },
             ]
         },
@@ -66,9 +69,9 @@ def create_sample_dataset():
     return Dataset.from_list(conversations)
 
 
-def main():
-    """Main function demonstrating basic training with Training Lens."""
-    print("🚀 Training Lens Basic Example")
+def main() -> int:
+    """Main function demonstrating basic LoRA training with Training Lens."""
+    print("🚀 Training Lens LoRA Training Example")
     print("=" * 50)
 
     # Create sample dataset
@@ -92,14 +95,15 @@ def main():
 
         config = TrainingConfig(
             # Model configuration
-            model_name="microsoft/DialoGPT-small",  # Small model for quick example
+            model_name="unsloth/llama-2-7b-bnb-4bit",  # Unsloth model for optimal LoRA training
             max_seq_length=512,
             load_in_4bit=True,
-            # Training method
-            training_method="lora",
+            # LoRA configuration
+            training_method="lora",  # LoRA-only in training_lens
             lora_r=16,
             lora_alpha=32,
             lora_dropout=0.1,
+            target_modules=None,  # Auto-detect optimal modules
             # Training parameters
             per_device_train_batch_size=1,
             gradient_accumulation_steps=4,
@@ -108,26 +112,35 @@ def main():
             learning_rate=2e-4,
             fp16=True,
             logging_steps=10,
-            # Checkpoint configuration
-            checkpoint_interval=25,
+            # LoRA checkpoint configuration
+            checkpoint_interval=10,  # Save every 10 steps for demo
             save_strategy="steps",
-            save_steps=25,
+            save_steps=10,
+            upload_adapter_weights=True,
+            upload_gradients=True,
             # Output configuration
             output_dir=output_dir,
-            # Analysis settings
-            capture_gradients=True,
-            capture_weights=True,
-            capture_activations=False,
+            # LoRA analysis settings
+            capture_adapter_gradients=True,
+            capture_adapter_weights=True,
+            capture_lora_activations=False,
+            # Unsloth configuration
+            unsloth_max_seq_length=512,
+            unsloth_dtype=None,  # Auto-detect
+            unsloth_load_in_4bit=True,
         )
 
         print(f"   Model: {config.model_name}")
-        print(f"   Method: {config.training_method}")
+        print("   Method: LoRA (training_lens is LoRA-only)")
+        print(f"   LoRA r: {config.lora_r}, alpha: {config.lora_alpha}")
         print(f"   Max steps: {config.max_steps}")
+        print(f"   Checkpoint interval: {config.checkpoint_interval} steps")
         print(f"   Output directory: {config.output_dir}")
+        print(f"   Adapter uploads: weights={config.upload_adapter_weights}, gradients={config.upload_gradients}")
 
         # Initialize Training Lens wrapper
         print("\n🔧 Initializing Training Lens...")
-        wrapper = TrainingWrapper(config)
+        wrapper = LoRATrainingWrapper(config)
 
         # Start training
         print("\n🏋️  Starting training...")
@@ -143,20 +156,24 @@ def main():
             print(f"   Training time: {results['training_time']:.2f}s")
             print(f"   Model saved to: {results['final_model_path']}")
 
-            # Demonstrate analysis
-            print("\n🔍 Running post-training analysis...")
+            # Demonstrate LoRA analysis
+            print("\n🔍 Running post-training LoRA analysis...")
 
-            from training_lens.analysis.checkpoint_analyzer import CheckpointAnalyzer
+            from training_lens.analysis import CheckpointAnalyzer
 
-            analyzer = CheckpointAnalyzer(config.output_dir / "checkpoints")
+            analyzer = CheckpointAnalyzer(Path(config.output_dir) / "checkpoints")
             report = analyzer.generate_standard_report()
 
-            print(f"   Analyzed {len(analyzer.checkpoints_info)} checkpoints")
+            print(f"   Analyzed {len(analyzer.checkpoints_info)} LoRA checkpoints")
 
-            # Show key insights
-            gradient_analysis = report.get("gradient_analysis", {})
-            if "mean_cosine_similarity" in gradient_analysis:
-                print(f"   Gradient consistency: {gradient_analysis['mean_cosine_similarity']:.3f}")
+            # Show key LoRA insights
+            adapter_gradient_analysis = report.get("adapter_gradient_analysis", {})
+            if "mean_cosine_similarity" in adapter_gradient_analysis:
+                print(f"   LoRA gradient consistency: {adapter_gradient_analysis['mean_cosine_similarity']:.3f}")
+
+            adapter_weight_analysis = report.get("adapter_weight_analysis", {})
+            if "adapter_weight_stability" in adapter_weight_analysis:
+                print(f"   LoRA weight stability: {adapter_weight_analysis['adapter_weight_stability']}")
 
             training_dynamics = report.get("training_dynamics", {})
             if "loss_analysis" in training_dynamics:
@@ -164,19 +181,22 @@ def main():
                 if "loss_reduction_percentage" in loss_analysis:
                     print(f"   Loss improvement: {loss_analysis['loss_reduction_percentage']:.1f}%")
 
-            print("\n📊 Analysis complete!")
-            print(f"   Full analysis available in: {config.output_dir}")
+            print("\n📊 LoRA analysis complete!")
+            print(f"   Full LoRA adapter analysis available in: {config.output_dir}")
+            print("   LoRA-specific metrics: adapter gradients, weights, and training dynamics")
 
         except Exception as e:
             print(f"\n❌ Training failed: {e}")
             return 1
 
-    print("\n✨ Example completed successfully!")
+    print("\n✨ LoRA training example completed successfully!")
     print("\nNext steps:")
     print("   1. Try with your own dataset")
-    print("   2. Experiment with different hyperparameters")
+    print("   2. Experiment with different LoRA parameters (r, alpha, target_modules)")
     print("   3. Add W&B integration for experiment tracking")
-    print("   4. Upload models to HuggingFace Hub")
+    print("   4. Upload LoRA adapters to HuggingFace Hub")
+    print("   5. Use different Unsloth-optimized base models")
+    print("   6. Analyze LoRA adapter-specific metrics")
 
     return 0
 

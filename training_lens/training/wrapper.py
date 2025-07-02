@@ -2,18 +2,20 @@
 
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import torch
 from datasets import Dataset
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    DataCollatorForLanguageModeling,
-    Trainer,
-    TrainingArguments,
+from transformers.data.data_collator import DataCollatorForLanguageModeling
+from transformers.trainer import Trainer
+from transformers.training_args import TrainingArguments
+
+from ..utils.unsloth_compat import (
+    load_model_and_tokenizer,
+    get_peft_model_wrapper,
+    is_bfloat16_supported,
+    get_backend_info,
 )
-from unsloth import FastLanguageModel, is_bfloat16_supported
 
 from ..integrations.huggingface_integration import HuggingFaceIntegration
 from ..integrations.wandb_integration import WandBIntegration
@@ -22,6 +24,11 @@ from ..utils.logging import TrainingLogger, get_logger
 from .checkpoint_manager import CheckpointManager
 from .config import CheckpointMetadata, TrainingConfig
 from .metrics_collector import MetricsCollector
+
+if TYPE_CHECKING:
+    from transformers.modeling_utils import PreTrainedModel  # noqa: F401
+    from transformers.tokenization_utils import PreTrainedTokenizer  # noqa: F401
+
 
 logger = get_logger(__name__)
 
@@ -49,7 +56,7 @@ class TrainingWrapper:
         self.config = config
 
         # Set up logging
-        log_file = config.logging_dir / "training.log" if config.logging_dir else None
+        log_file = Path(config.logging_dir) / "training.log" if config.logging_dir else None
         self.logger = TrainingLogger("training_lens.wrapper", log_file)
 
         # Initialize components
@@ -59,13 +66,15 @@ class TrainingWrapper:
         )
 
         self.metrics_collector = MetricsCollector(
-            capture_gradients=config.capture_gradients,
-            capture_weights=config.capture_weights,
-            capture_activations=config.capture_activations,
+            capture_adapter_gradients=config.capture_adapter_gradients,
+            capture_adapter_weights=config.capture_adapter_weights,
+            capture_lora_activations=config.capture_lora_activations,
+            upload_adapter_weights=config.upload_adapter_weights,
+            upload_gradients=config.upload_gradients,
         )
 
         # Initialize integrations
-        self.wandb_integration = None
+        self.wandb_integration: Optional[WandBIntegration] = None
         if config.wandb_project:
             self.wandb_integration = WandBIntegration(
                 project=config.wandb_project,
@@ -73,7 +82,7 @@ class TrainingWrapper:
                 config=config.to_dict(),
             )
 
-        self.hf_integration = None
+        self.hf_integration: Optional[HuggingFaceIntegration] = None
         if config.hf_hub_repo:
             self.hf_integration = HuggingFaceIntegration(
                 repo_id=config.hf_hub_repo,
@@ -81,65 +90,52 @@ class TrainingWrapper:
             )
 
         # Training state
-        self.model = None
-        self.tokenizer = None
-        self.trainer = None
+        self.model: Optional[torch.nn.Module] = None
+        self.tokenizer: Optional[Any] = None  # PreTrainedTokenizer
+        self.trainer: Optional[Trainer] = None
         self.device = get_device()
 
         self.logger.print_banner("Training Lens Initialized")
         self.logger.info(f"Device: {self.device}")
         self.logger.info(f"Output directory: {config.output_dir}")
 
+        # Log backend info
+        backend_info = get_backend_info()
+        self.logger.info(f"Backend: {'Unsloth' if backend_info['unsloth_available'] else 'PEFT'}")
+        self.logger.info(f"BF16 Support: {backend_info['bfloat16_supported']}")
+
     def setup_model_and_tokenizer(self) -> None:
         """Set up model and tokenizer based on configuration."""
         self.logger.info(f"Loading model: {self.config.model_name}")
 
-        if self.config.training_method == "lora":
-            # Use unsloth for LoRA training
-            self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-                model_name=self.config.model_name,
-                max_seq_length=self.config.max_seq_length,
-                dtype=None,  # Auto-detect
-                load_in_4bit=self.config.load_in_4bit,
-            )
+        # Load model and tokenizer using compatibility layer
+        unsloth_config = self.config.get_unsloth_config()
 
-            # Set up LoRA configuration
-            self.model = FastLanguageModel.get_peft_model(
-                self.model,
-                r=self.config.lora_r,
-                target_modules=self.config.target_modules
-                or [
-                    "q_proj",
-                    "k_proj",
-                    "v_proj",
-                    "o_proj",
-                    "gate_proj",
-                    "up_proj",
-                    "down_proj",
-                ],
-                lora_alpha=self.config.lora_alpha,
-                lora_dropout=self.config.lora_dropout,
-                bias="none",
-                use_gradient_checkpointing="unsloth",
-                random_state=3407,
-                use_rslora=False,
-                loftq_config=None,
-            )
+        self.model, self.tokenizer = load_model_and_tokenizer(
+            model_name=self.config.model_name,
+            max_seq_length=unsloth_config["max_seq_length"],
+            dtype=unsloth_config["dtype"],
+            load_in_4bit=unsloth_config["load_in_4bit"],
+        )
 
-        else:
-            # Full fine-tuning
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.config.model_name,
-                torch_dtype=torch.float16 if self.config.fp16 else torch.float32,
-                device_map="auto",
-            )
-            self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
+        # Set up LoRA configuration
+        self.model = get_peft_model_wrapper(
+            self.model,
+            r=self.config.lora_r,
+            target_modules=self.config.target_modules,
+            lora_alpha=self.config.lora_alpha,
+            lora_dropout=self.config.lora_dropout,
+            use_gradient_checkpointing="unsloth",
+            random_state=3407,
+        )
 
         # Set up tokenizer
+        assert self.tokenizer is not None, "Tokenizer must be initialized"
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
         # Log model info
+        assert self.model is not None, "Model must be initialized"
         total_params = sum(p.numel() for p in self.model.parameters())
         trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
@@ -158,8 +154,9 @@ class TrainingWrapper:
         """
         self.logger.info(f"Preparing dataset with {len(dataset)} examples")
 
-        def tokenize_function(examples):
+        def tokenize_function(examples: Dict[str, Any]) -> Dict[str, Any]:
             # Add chat template if available
+            assert self.tokenizer is not None, "Tokenizer must be initialized"
             if hasattr(self.tokenizer, "apply_chat_template"):
                 texts = []
                 for conversation in examples.get("conversation", examples.get("messages", [])):
@@ -229,12 +226,14 @@ class TrainingWrapper:
         )
 
         # Data collator
+        assert self.tokenizer is not None, "Tokenizer must be initialized"
         data_collator = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer,
             mlm=False,
         )
 
         # Create trainer
+        assert self.model is not None, "Model must be initialized"
         self.trainer = Trainer(
             model=self.model,
             args=training_args,
@@ -278,18 +277,22 @@ class TrainingWrapper:
         self.setup_trainer(train_dataset, eval_dataset)
 
         # Initialize metrics collector with model
+        assert self.model is not None, "Model must be initialized"
+        assert self.trainer is not None, "Trainer must be initialized"
         self.metrics_collector.setup(self.model, self.trainer.optimizer)
 
         # Start training
         start_time = time.time()
 
         try:
+            assert self.trainer is not None, "Trainer must be initialized"
             train_result = self.trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
             training_time = time.time() - start_time
 
             # Save final model
-            final_model_path = self.config.output_dir / "final_model"
+            final_model_path = Path(self.config.output_dir) / "final_model"
+            assert self.trainer is not None, "Trainer must be initialized"
             self.trainer.save_model(str(final_model_path))
 
             # Upload final model to HuggingFace if configured
@@ -332,15 +335,15 @@ class TrainingWrapper:
             if self.wandb_integration:
                 self.wandb_integration.finish()
 
-    def _create_training_callback(self):
+    def _create_training_callback(self) -> Any:
         """Create custom training callback for monitoring."""
         from transformers import TrainerCallback
 
         class TrainingLensCallback(TrainerCallback):
-            def __init__(self, wrapper):
+            def __init__(self, wrapper: "TrainingWrapper") -> None:
                 self.wrapper = wrapper
 
-            def on_step_end(self, args, state, control, **kwargs):
+            def on_step_end(self, args: Any, state: Any, control: Any, **kwargs: Any) -> None:
                 # Collect metrics
                 metrics = self.wrapper.metrics_collector.collect_step_metrics(
                     state.global_step,
@@ -366,7 +369,7 @@ class TrainingWrapper:
                     **{k: v for k, v in metrics.items() if k != "grad_norm"},
                 )
 
-            def _save_checkpoint(self, state, logs):
+            def _save_checkpoint(self, state: Any, logs: Dict[str, Any]) -> None:
                 metadata = CheckpointMetadata(
                     step=state.global_step,
                     epoch=state.epoch,
@@ -376,32 +379,33 @@ class TrainingWrapper:
                     grad_norm=logs.get("grad_norm"),
                 )
 
-                # Save checkpoint locally
-                checkpoint_path = self.wrapper.checkpoint_manager.save_checkpoint(
+                # Save checkpoint locally with LoRA adapter focus
+                checkpoint_path = self.wrapper.checkpoint_manager.save_lora_checkpoint(
                     self.wrapper.model,
                     self.wrapper.tokenizer,
                     self.wrapper.trainer.optimizer,
                     self.wrapper.trainer.lr_scheduler,
                     metadata,
-                    self.wrapper.metrics_collector.get_checkpoint_data(),
+                    self.wrapper.metrics_collector.get_adapter_checkpoint_data(),
                 )
 
-                # Upload to HuggingFace if configured
+                # Upload adapter weights and gradients to HuggingFace if configured
                 if self.wrapper.hf_integration:
                     try:
-                        self.wrapper.hf_integration.upload_checkpoint(
+                        self.wrapper.hf_integration.upload_lora_checkpoint(
                             checkpoint_path,
                             state.global_step,
                             metadata.to_dict(),
+                            upload_adapter_only=True,
                         )
                     except Exception as e:
-                        self.wrapper.logger.warning(f"Failed to upload checkpoint: {e}")
+                        self.wrapper.logger.warning(f"Failed to upload LoRA checkpoint: {e}")
 
                 self.wrapper.logger.log_checkpoint_saved(state.global_step, checkpoint_path)
 
         return TrainingLensCallback(self)
 
-    def _generate_final_report(self, train_result, training_time: float) -> Dict[str, Any]:
+    def _generate_final_report(self, train_result: Any, training_time: float) -> Dict[str, Any]:
         """Generate final training report."""
         return {
             "final_loss": train_result.training_loss,
@@ -410,6 +414,8 @@ class TrainingWrapper:
             "training_time_hours": f"{training_time/3600:.2f}h",
             "steps_per_second": f"{train_result.global_step/training_time:.2f}",
             "model_name": self.config.model_name,
-            "training_method": self.config.training_method,
+            "training_method": "lora",
+            "lora_r": self.config.lora_r,
+            "lora_alpha": self.config.lora_alpha,
             "checkpoints_saved": len(self.checkpoint_manager.list_checkpoints()),
         }

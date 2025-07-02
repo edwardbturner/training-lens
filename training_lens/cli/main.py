@@ -5,6 +5,7 @@ from pathlib import Path
 import click
 
 from ..utils.logging import get_logger, setup_logging
+from .activations import activations
 from .analyze import analyze_command
 from .export import export_command
 from .train import train_command
@@ -36,6 +37,7 @@ def cli(verbose: bool, log_file: str) -> None:
 cli.add_command(train_command, name="train")
 cli.add_command(analyze_command, name="analyze")
 cli.add_command(export_command, name="export")
+cli.add_command(activations, name="activations")
 
 
 @cli.command()
@@ -168,7 +170,7 @@ def summary(checkpoint_dir: str, output_format: str, output: str) -> None:
     import pandas as pd
     import yaml
 
-    from ..analysis.checkpoint_analyzer import CheckpointAnalyzer
+    from ..analysis import CheckpointAnalyzer
 
     analyzer = CheckpointAnalyzer(checkpoint_dir)
 

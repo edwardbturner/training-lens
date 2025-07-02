@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 
 class CheckpointManager:
-    """Manages model checkpoints and metadata during training."""
+    """Manages LoRA adapter checkpoints and metadata during training."""
 
     def __init__(
         self,
@@ -128,6 +128,121 @@ class CheckpointManager:
         logger.info(f"Checkpoint saved successfully at {checkpoint_path}")
         return checkpoint_path
 
+    def save_lora_checkpoint(
+        self,
+        model: PreTrainedModel,
+        tokenizer: Optional[PreTrainedTokenizer] = None,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        scheduler: Optional[Any] = None,
+        metadata: Optional[CheckpointMetadata] = None,
+        additional_data: Optional[Dict[str, Any]] = None,
+    ) -> Path:
+        """Save a LoRA-focused training checkpoint with adapter weights only.
+
+        Args:
+            model: The LoRA model to save
+            tokenizer: Optional tokenizer to save
+            optimizer: Optional optimizer state to save
+            scheduler: Optional scheduler state to save
+            metadata: Checkpoint metadata
+            additional_data: Additional LoRA-specific data to save with checkpoint
+
+        Returns:
+            Path to the saved checkpoint directory
+        """
+        if metadata is None:
+            raise ValueError("Checkpoint metadata is required")
+
+        step = metadata.step
+        checkpoint_name = f"lora-checkpoint-{step}"
+        checkpoint_path = self.checkpoint_dir / checkpoint_name
+
+        logger.info(f"Saving LoRA checkpoint at step {step} to {checkpoint_path}")
+
+        # Create checkpoint directory
+        ensure_dir(checkpoint_path)
+
+        # Save only LoRA adapter weights (not full model)
+        if hasattr(model, "save_pretrained"):
+            # For PEFT models, this saves only the adapter
+            model.save_pretrained(checkpoint_path / "adapter")
+        else:
+            # Fallback: save LoRA parameters manually
+            lora_state_dict = {}
+            for name, param in model.named_parameters():
+                if "lora" in name.lower() or "adapter" in name.lower():
+                    lora_state_dict[name] = param.data.clone()
+
+            if lora_state_dict:
+                safe_save(lora_state_dict, checkpoint_path / "lora_weights.pt", format="torch")
+            else:
+                logger.warning("No LoRA parameters found to save")
+
+        # Save tokenizer if provided
+        if tokenizer and self.save_tokenizer:
+            tokenizer.save_pretrained(checkpoint_path / "tokenizer")
+
+        # Save only LoRA-relevant optimizer state
+        if optimizer and self.save_optimizer:
+            # Filter optimizer state to LoRA parameters only
+            lora_param_ids = set()
+            for name, param in model.named_parameters():
+                if "lora" in name.lower() or "adapter" in name.lower():
+                    lora_param_ids.add(id(param))
+
+            filtered_optimizer_state = {
+                "state": {
+                    k: v
+                    for k, v in optimizer.state_dict()["state"].items()
+                    if any(id(p) == k for p in model.parameters() if id(p) in lora_param_ids)
+                },
+                "param_groups": optimizer.param_groups,
+            }
+            safe_save(filtered_optimizer_state, checkpoint_path / "lora_optimizer.pt", format="torch")
+
+        # Save scheduler state if provided
+        if scheduler:
+            scheduler_state = {
+                "state_dict": scheduler.state_dict(),
+                "last_epoch": scheduler.last_epoch,
+            }
+            safe_save(scheduler_state, checkpoint_path / "scheduler.pt", format="torch")
+
+        # Save LoRA-specific metadata
+        metadata_dict = metadata.to_dict()
+        metadata_dict["timestamp"] = datetime.now().isoformat()
+        metadata_dict["checkpoint_path"] = str(checkpoint_path)
+        metadata_dict["checkpoint_type"] = "lora_adapter"
+        metadata_dict["adapter_only"] = True
+
+        safe_save(metadata_dict, checkpoint_path / "metadata.json", format="json")
+
+        # Save LoRA-specific additional data
+        if additional_data:
+            safe_save(additional_data, checkpoint_path / "lora_training_data.pt", format="torch")
+
+        # Update checkpoint index
+        checkpoint_info = {
+            "step": step,
+            "path": str(checkpoint_path),
+            "timestamp": metadata_dict["timestamp"],
+            "metadata": metadata_dict,
+            "type": "lora_adapter",
+        }
+        self.checkpoints.append(checkpoint_info)
+
+        # Sort checkpoints by step
+        self.checkpoints.sort(key=lambda x: x["step"])
+
+        # Clean up old checkpoints if needed
+        self._cleanup_old_checkpoints()
+
+        # Save updated index
+        self._save_checkpoint_index()
+
+        logger.info(f"LoRA checkpoint saved successfully at {checkpoint_path}")
+        return checkpoint_path
+
     def load_checkpoint(
         self,
         step: Optional[int] = None,
@@ -161,27 +276,53 @@ class CheckpointManager:
         metadata_path = checkpoint_path / "metadata.json"
         metadata = load_file(metadata_path, format="json") if metadata_path.exists() else {}
 
-        # Load optimizer state if exists
+        # Load optimizer state if exists (check both regular and lora paths)
         optimizer_path = checkpoint_path / "optimizer.pt"
-        optimizer_state = load_file(optimizer_path, format="torch") if optimizer_path.exists() else None
+        lora_optimizer_path = checkpoint_path / "lora_optimizer.pt"
+
+        if optimizer_path.exists():
+            optimizer_state = load_file(optimizer_path, format="torch")
+        elif lora_optimizer_path.exists():
+            optimizer_state = load_file(lora_optimizer_path, format="torch")
+        else:
+            optimizer_state = None
 
         # Load scheduler state if exists
         scheduler_path = checkpoint_path / "scheduler.pt"
         scheduler_state = load_file(scheduler_path, format="torch") if scheduler_path.exists() else None
 
-        # Load additional data if exists
+        # Load additional data if exists (check both regular and LoRA-specific paths)
         additional_data_path = checkpoint_path / "additional_data.pt"
-        additional_data = load_file(additional_data_path, format="torch") if additional_data_path.exists() else None
+        lora_data_path = checkpoint_path / "lora_training_data.pt"
 
-        return {
+        additional_data = None
+        if lora_data_path.exists():
+            additional_data = load_file(lora_data_path, format="torch")
+        elif additional_data_path.exists():
+            additional_data = load_file(additional_data_path, format="torch")
+
+        # Determine paths based on checkpoint type
+        is_lora_checkpoint = metadata.get("checkpoint_type") == "lora_adapter" or "lora-checkpoint" in str(
+            checkpoint_path
+        )
+
+        result = {
             "checkpoint_path": checkpoint_path,
-            "model_path": checkpoint_path / "model",
             "tokenizer_path": checkpoint_path / "tokenizer",
             "metadata": metadata,
             "optimizer_state": optimizer_state,
             "scheduler_state": scheduler_state,
             "additional_data": additional_data,
+            "is_lora_checkpoint": is_lora_checkpoint,
         }
+
+        if is_lora_checkpoint:
+            result["adapter_path"] = checkpoint_path / "adapter"
+            result["lora_weights_path"] = checkpoint_path / "lora_weights.pt"
+        else:
+            result["model_path"] = checkpoint_path / "model"
+
+        return result
 
     def list_checkpoints(self) -> List[Dict[str, Any]]:
         """List all available checkpoints."""
@@ -200,16 +341,20 @@ class CheckpointManager:
         Returns:
             True if deleted successfully, False otherwise
         """
-        checkpoint_path = self.checkpoint_dir / f"checkpoint-{step}"
+        # Try both regular and lora checkpoint paths
+        checkpoint_paths = [self.checkpoint_dir / f"checkpoint-{step}", self.checkpoint_dir / f"lora-checkpoint-{step}"]
 
-        if checkpoint_path.exists():
-            shutil.rmtree(checkpoint_path)
+        deleted = False
+        for checkpoint_path in checkpoint_paths:
+            if checkpoint_path.exists():
+                shutil.rmtree(checkpoint_path)
+                deleted = True
+                logger.info(f"Deleted checkpoint at {checkpoint_path}")
 
+        if deleted:
             # Remove from index
             self.checkpoints = [cp for cp in self.checkpoints if cp["step"] != step]
             self._save_checkpoint_index()
-
-            logger.info(f"Deleted checkpoint at step {step}")
             return True
 
         return False
