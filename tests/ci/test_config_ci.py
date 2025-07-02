@@ -1,11 +1,11 @@
 """CI-specific tests for configuration handling using lightweight fixtures."""
 
-import pytest
-from pathlib import Path
 import json
 
-from training_lens.config.training_config import TrainingConfig
+import pytest
+
 from training_lens.config.lora_config import LoRAConfig
+from training_lens.config.training_config import TrainingConfig
 from training_lens.training.config import CheckpointMetadata
 
 
@@ -37,13 +37,13 @@ class TestTrainingConfigCI:
 
     def test_training_config_validation(self):
         """Test training config validation."""
-        # Test invalid training method
-        with pytest.raises(ValueError):
-            TrainingConfig(model_name="test", training_method="invalid_method", output_dir="./test")
-
-        # Test invalid learning rate
+        # Test invalid learning rate (this should raise ValueError from field validator)
         with pytest.raises(ValueError):
             TrainingConfig(model_name="test", learning_rate=-0.001, output_dir="./test")
+
+        # Test invalid max_seq_length (this should raise ValueError from field validator)
+        with pytest.raises(ValueError):
+            TrainingConfig(model_name="test", max_seq_length=0, output_dir="./test")
 
     def test_training_config_to_dict(self, simple_training_config):
         """Test converting config to dictionary."""

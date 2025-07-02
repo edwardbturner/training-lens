@@ -3,8 +3,8 @@
 import pytest
 import torch
 
-from training_lens.collectors.adapter_weights import AdapterWeightsCollector
 from training_lens.collectors.adapter_gradients import AdapterGradientsCollector
+from training_lens.collectors.adapter_weights import AdapterWeightsCollector
 from training_lens.core.base import DataType
 
 

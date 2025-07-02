@@ -1,8 +1,8 @@
 """CI-specific tests for collector registry using lightweight fixtures."""
 
-import pytest
 from typing import Any, Dict, List, Optional
 
+import pytest
 import torch
 
 from training_lens.core.base import DataCollector, DataType
@@ -40,8 +40,6 @@ class MockCollectorCI(DataCollector):
 
 class InvalidCollectorCI:
     """Invalid collector that doesn't inherit from DataCollector."""
-
-    pass
 
 
 @pytest.mark.ci

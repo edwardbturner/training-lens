@@ -9,8 +9,8 @@ import inspect
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Type, Union
 
-from .base import DataCollector, DataType
 from ..utils.logging import get_logger
+from .base import DataCollector, DataType
 
 logger = get_logger(__name__)
 
@@ -190,9 +190,9 @@ class CollectorRegistry:
         # Import built-in collectors
         try:
             from ..collectors import (
-                AdapterWeightsCollector,
-                AdapterGradientsCollector,
                 ActivationsCollector,
+                AdapterGradientsCollector,
+                AdapterWeightsCollector,
                 LoRAActivationsCollector,
             )
 

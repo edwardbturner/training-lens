@@ -3,8 +3,8 @@
 import pytest
 import torch
 
-from training_lens.collectors.adapter_weights import AdapterWeightsCollector
 from training_lens.collectors.adapter_gradients import AdapterGradientsCollector
+from training_lens.collectors.adapter_weights import AdapterWeightsCollector
 from training_lens.core.base import DataType
 
 
@@ -143,7 +143,7 @@ class TestCollectorIntegrationCI:
             loss.backward()
 
         # Collect gradients
-        grad_result = grad_collector.collect(simple_model, step=200, optimizer=simple_optimizer)
+        grad_collector.collect(simple_model, step=200, optimizer=simple_optimizer)
         # Gradient collection might return None if no gradients found, which is ok
 
     def test_collector_configuration(self):

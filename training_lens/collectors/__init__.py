@@ -2,8 +2,8 @@
 
 # LoRA-specific collectors
 try:
-    from .adapter_weights import AdapterWeightsCollector
     from .adapter_gradients import AdapterGradientsCollector
+    from .adapter_weights import AdapterWeightsCollector
     from .lora_activations import LoRAActivationsCollector
 except ImportError:
     AdapterWeightsCollector = None

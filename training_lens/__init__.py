@@ -5,24 +5,24 @@ This library provides comprehensive monitoring and analysis tools for LoRA adapt
 with deep insights into how LoRA adapters evolve during the fine-tuning process.
 Integrated with Unsloth for optimal LoRA training performance.
 """
+# Analysis components
+from .analysis import CheckpointAnalyzer, StandardReports
+
+# Core training components
+from .training import CheckpointManager, MetricsCollector, TrainingConfig, TrainingWrapper
 
 __version__ = "0.1.0"
 __author__ = "Training Lens Contributors"
 __email__ = "contact@training-lens.org"
 
-# Core training components
-from .training import TrainingWrapper, TrainingConfig, CheckpointManager, MetricsCollector
-
-# Analysis components
-from .analysis import CheckpointAnalyzer, StandardReports
 
 try:
     from .analysis import (
-        GradientAnalyzer,
-        WeightAnalyzer,
         ActivationAnalyzer,
         ActivationExtractor,
         ActivationVisualizer,
+        GradientAnalyzer,
+        WeightAnalyzer,
     )
     from .analysis.adapters.lora_tracker import LoRAActivationTracker, LoRAParameterAnalyzer
 except ImportError:
@@ -37,7 +37,7 @@ except ImportError:
 
 # Integration components
 try:
-    from .integrations import HuggingFaceIntegration, WandBIntegration, ActivationStorage
+    from .integrations import ActivationStorage, HuggingFaceIntegration, WandBIntegration
 except ImportError:
     HuggingFaceIntegration = None
     WandBIntegration = None

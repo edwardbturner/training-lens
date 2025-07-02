@@ -178,7 +178,7 @@ class MetricsCollector:
 
                             # Add summary metrics from collected data
                             if hasattr(collector, "get_metrics"):
-                                collector_metrics = collector.get_metrics(collected)
+                                collector_metrics = collector.get_metrics(collected)  # type: ignore
                                 if collector_metrics:
                                     metrics.update(collector_metrics)
 

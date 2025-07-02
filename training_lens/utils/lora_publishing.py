@@ -14,7 +14,7 @@ from .helpers import ensure_dir, safe_save
 from .logging import get_logger
 
 try:
-    from huggingface_hub import HfApi, create_repo, upload_folder, upload_file
+    from huggingface_hub import HfApi, create_repo, upload_file, upload_folder
 
     HF_HUB_AVAILABLE = True
 except ImportError:

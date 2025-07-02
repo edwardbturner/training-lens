@@ -12,10 +12,10 @@ from ..utils.logging import get_logger
 from ..utils.pydantic_compat import (
     BaseModel,
     Field,
-    validator,
-    root_validator,
-    is_pydantic_available,
     create_model_config,
+    is_pydantic_available,
+    root_validator,
+    validator,
 )
 
 PYDANTIC_AVAILABLE = is_pydantic_available()

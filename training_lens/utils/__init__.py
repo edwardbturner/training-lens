@@ -2,7 +2,7 @@
 
 # Core utilities
 from .helpers import format_size, get_device, safe_save
-from .logging import setup_logging, get_logger, TrainingLogger
+from .logging import TrainingLogger, get_logger, setup_logging
 
 __all__ = [
     # Logging utilities

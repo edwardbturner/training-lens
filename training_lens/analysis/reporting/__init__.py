@@ -1,8 +1,8 @@
 """Reporting and visualization components."""
 
 try:
-    from .reports import StandardReports
     from .loss_analysis import LossFunction
+    from .reports import StandardReports
 except ImportError:
     StandardReports = None
     LossFunction = None

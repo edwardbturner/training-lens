@@ -10,7 +10,12 @@ except ImportError:
     # Fallback for testing without dependencies
     class _FallbackBaseModel:
         def __init__(self, **kwargs: Any) -> None:
+            # Apply field validators if they exist
             for key, value in kwargs.items():
+                if hasattr(self.__class__, f"validate_{key}"):
+                    validator = getattr(self.__class__, f"validate_{key}")
+                    if hasattr(validator, "__self__") and validator.__self__ is self.__class__:
+                        value = validator(value)
                 setattr(self, key, value)
 
         def model_dump(self) -> Dict[str, Any]:

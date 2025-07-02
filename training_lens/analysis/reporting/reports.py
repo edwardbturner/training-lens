@@ -8,9 +8,9 @@ from typing import Any, Dict, List, Optional, Union
 import matplotlib.pyplot as plt
 
 from ...utils.logging import get_logger
-from ..training.checkpoint import CheckpointAnalyzer
 from ..model.gradient_analyzer import GradientAnalyzer
 from ..model.weight_analyzer import WeightAnalyzer
+from ..training.checkpoint import CheckpointAnalyzer
 
 logger = get_logger(__name__)
 
