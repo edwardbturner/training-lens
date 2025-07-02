@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 class MetricsCollector:
     """Collects LoRA-focused training metrics for analysis.
-    
+
     Supports both legacy boolean flags and new registry-based collector pattern.
     """
 
@@ -54,7 +54,7 @@ class MetricsCollector:
 
         # Get the registry
         self.registry = get_registry()
-        
+
         # Configure enabled collectors based on legacy flags or new interface
         if enabled_collectors is None:
             # Use legacy flags to determine enabled collectors
@@ -66,14 +66,14 @@ class MetricsCollector:
             if capture_lora_activations:
                 enabled_collectors.add(DataType.LORA_ACTIVATIONS)
                 enabled_collectors.add(DataType.ACTIVATIONS)
-        
+
         # Enable/disable collectors
         for data_type in DataType:
             if data_type in enabled_collectors:
                 self.registry.enable(data_type)
             else:
                 self.registry.disable(data_type)
-        
+
         # Configure collectors
         if collector_configs:
             for data_type, config in collector_configs.items():
@@ -85,7 +85,7 @@ class MetricsCollector:
         self.weight_stats_history: List[Dict[str, Any]] = []
         self.cosine_similarities: List[float] = []
         self.collected_data: Dict[int, Dict[DataType, Any]] = {}  # For registry-based collectors
-        
+
         logger.info(f"MetricsCollector initialized with collectors: {self.registry.list_enabled()}")
 
         # Model and optimizer references
@@ -122,7 +122,7 @@ class MetricsCollector:
             f"MetricsCollector setup with {len(self.lora_layer_names)} LoRA layers out of {total_trainable} trainable "
             "layers"
         )
-        
+
         # Setup registry collectors
         logger.info("MetricsCollector setup completed")
 
@@ -164,20 +164,20 @@ class MetricsCollector:
 
         # Use registry-based collectors if available
         use_registry = any(self.registry.is_enabled(dt) for dt in DataType)
-        
+
         if use_registry:
             # Collect data from all enabled collectors
             step_collected_data = {}
 
             for data_type, collector in self.registry.get_all_collectors().items():
                 try:
-                    if collector.can_collect(model, step):
+                    if model is not None and collector.can_collect(model, step):
                         collected = collector.collect(model, step, optimizer=self.optimizer)
                         if collected is not None:
                             step_collected_data[data_type] = collected
 
                             # Add summary metrics from collected data
-                            if hasattr(collector, "get_metrics"):
+                            if hasattr(collector, "get_metrics") and callable(getattr(collector, "get_metrics")):
                                 collector_metrics = collector.get_metrics(collected)
                                 metrics.update(collector_metrics)
 
@@ -404,7 +404,17 @@ class MetricsCollector:
         Returns:
             Dictionary containing metrics data for checkpoint
         """
-        return self.get_adapter_checkpoint_data()
+        checkpoint_data = self.get_adapter_checkpoint_data()
+
+        # Add latest collected data if available
+        if self.collected_data:
+            latest_step = max(self.collected_data.keys())
+            latest_data = {}
+            for data_type, data in self.collected_data[latest_step].items():
+                latest_data[data_type.value] = data
+            checkpoint_data["latest_collected_data"] = latest_data
+
+        return checkpoint_data
 
     def get_step_metrics(self, step: int) -> Optional[Dict[str, Any]]:
         """Get metrics for a specific step.
@@ -460,6 +470,7 @@ class MetricsCollector:
             "base_grad_norm_mean": np.mean(base_grad_norms) if base_grad_norms else None,
             "base_grad_norm_std": np.std(base_grad_norms) if base_grad_norms else None,
             "cosine_similarity_analysis": self.get_gradient_cosine_similarity_trend(),
+            "enabled_collectors": [dt.value for dt in self.registry.list_enabled()],
         }
 
         return summary
@@ -575,10 +586,7 @@ class MetricsCollector:
             collector_class: The collector class to register
             config: Optional configuration for the collector
         """
-        self.registry.register_collector(data_type, collector_class)
-        if config:
-            self.registry.configure_collector(data_type, config)
-        self.registry.enable_collector(data_type)
+        self.registry.register(data_type, collector_class, config=config, enabled=True)
 
     def remove_collector(self, data_type: DataType) -> None:
         """Remove a collector at runtime.
@@ -586,7 +594,7 @@ class MetricsCollector:
         Args:
             data_type: The data type to remove
         """
-        self.registry.unregister_collector(data_type)
+        self.registry.unregister(data_type)
 
     def configure_collector(self, data_type: DataType, config: Dict[str, Any]) -> None:
         """Configure a specific collector.
@@ -595,4 +603,18 @@ class MetricsCollector:
             data_type: The data type to configure
             config: Configuration dictionary
         """
-        self.registry.configure_collector(data_type, config)
+        self.registry.configure(data_type, config)
+
+    def get_collected_data(self, step: int, data_type: DataType) -> Optional[Dict[str, Any]]:
+        """Get collected data for a specific step and data type.
+
+        Args:
+            step: The training step
+            data_type: The type of data to retrieve
+
+        Returns:
+            Collected data dictionary or None if not found
+        """
+        if step in self.collected_data:
+            return self.collected_data[step].get(data_type)
+        return None
