@@ -154,7 +154,10 @@ class LoRAAnalyzer(DataAnalyzer):
                 "norms": effective_norms,
                 "trend": self._compute_trend(np.array(effective_norms)),
                 "stability": np.std(effective_norms) if len(effective_norms) > 1 else 0,
-                "growth_rate": (effective_norms[-1] - effective_norms[0]) / len(effective_norms) if len(effective_norms) > 1 else 0,
+                "growth_rate": (
+                    (effective_norms[-1] - effective_norms[0]) / len(effective_norms)
+                    if len(effective_norms) > 1 else 0
+                ),
             },
             "rank_info": {
                 "rank": ranks[0] if ranks else 0,

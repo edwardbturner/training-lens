@@ -169,7 +169,6 @@ def get_backend_info() -> Dict[str, Any]:
         device = "mps"
     else:
         device = "cpu"
-    
     return {
         "unsloth_available": UNSLOTH_AVAILABLE,
         "peft_available": PEFT_AVAILABLE,

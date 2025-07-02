@@ -1,7 +1,6 @@
 """Pydantic compatibility layer to support both v1 and v2."""
 
-import sys
-from typing import Any, Type
+from typing import Type
 
 # Try to import Pydantic v2 first
 try:

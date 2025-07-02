@@ -1,6 +1,6 @@
 """Collector for general model activations."""
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn as nn
@@ -136,11 +136,11 @@ class ActivationsCollector(DataCollector):
         if hasattr(model, 'model') and hasattr(model.model, 'layers'):
             # Llama-style architecture
             layers = model.model.layers
-            base_path = "model.layers"
+            # base_path = "model.layers"  # Not used currently
         elif hasattr(model, 'transformer') and hasattr(model.transformer, 'h'):
             # GPT-style architecture
             layers = model.transformer.h
-            base_path = "transformer.h"
+            # base_path = "transformer.h"  # Not used currently
         else:
             return  # Unknown architecture
 

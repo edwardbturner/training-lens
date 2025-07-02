@@ -19,11 +19,7 @@ try:
 except ImportError:
     HF_HUB_AVAILABLE = False
 
-try:
-    import torch
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
+TORCH_AVAILABLE = True  # torch is required, no need to check
 
 logger = get_logger(__name__)
 
@@ -333,7 +329,7 @@ class LoRAPublisher:
                 commit_hash = upload_folder(
                     folder_path=str(temp_path),
                     repo_id=repo_id,
-                    commit_message=f"Upload LoRA model with metadata",
+                    commit_message="Upload LoRA model with metadata",
                     token=self.token,
                 )
 
@@ -485,7 +481,7 @@ def upload_lora_collection(
     # Create filter functions
     checkpoint_filter = None
     if min_checkpoint_step is not None:
-        def checkpoint_filter(checkpoint_dir: Path) -> bool:
+        def checkpoint_filter_fn(checkpoint_dir: Path) -> bool:
             try:
                 # Extract step number from directory name (e.g., "checkpoint-1500" -> 1500)
                 if "checkpoint-" in checkpoint_dir.name:
@@ -495,10 +491,13 @@ def upload_lora_collection(
                 return True
             except (ValueError, IndexError):
                 return True
+        checkpoint_filter = checkpoint_filter_fn
 
     file_filter = None
     if safetensors_only:
-        def file_filter(f): return f.suffix == ".safetensors"
+        def file_filter_fn(f):
+            return f.suffix == ".safetensors"
+        file_filter = file_filter_fn
 
     return publisher.upload_checkpoint_collection(
         checkpoints_dir=checkpoints_dir,

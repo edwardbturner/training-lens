@@ -58,6 +58,12 @@ class TestExtensibleCollectorIntegration:
     
     def test_full_training_integration(self, temp_dir, mock_model, mock_optimizer):
         """Test collectors work through full training workflow."""
+        # Unregister any existing collector first to ensure clean state
+        from training_lens.core.collector_registry import get_registry
+        registry = get_registry()
+        if DataType.PARAMETER_NORMS in registry.list_registered():
+            registry.unregister(DataType.PARAMETER_NORMS)
+        
         # Register custom collector
         register_collector(
             DataType.PARAMETER_NORMS,
@@ -116,6 +122,9 @@ class TestExtensibleCollectorIntegration:
         # Verify summary includes custom collector info
         summary = metrics_collector.export_metrics_summary()
         assert DataType.PARAMETER_NORMS.value in summary["enabled_collectors"]
+        
+        # Cleanup: unregister the custom collector
+        registry.unregister(DataType.PARAMETER_NORMS)
     
     def test_runtime_collector_management(self, mock_model, mock_optimizer):
         """Test adding and removing collectors at runtime."""

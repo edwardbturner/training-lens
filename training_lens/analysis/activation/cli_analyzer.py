@@ -16,7 +16,7 @@ import torch
 from ...utils.logging import get_logger
 
 try:
-    from transformers import AutoModel, AutoTokenizer
+    import transformers  # noqa: F401
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False

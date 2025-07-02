@@ -177,9 +177,10 @@ class MetricsCollector:
                             step_collected_data[data_type] = collected
 
                             # Add summary metrics from collected data
-                            if hasattr(collector, "get_metrics") and callable(getattr(collector, "get_metrics")):
+                            if hasattr(collector, "get_metrics"):
                                 collector_metrics = collector.get_metrics(collected)
-                                metrics.update(collector_metrics)
+                                if collector_metrics:
+                                    metrics.update(collector_metrics)
 
                             logger.debug(f"Collected {data_type} data at step {step}")
                 except Exception as e:

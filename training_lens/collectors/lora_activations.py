@@ -3,7 +3,6 @@
 from typing import Any, Dict, List, Optional
 
 import torch
-import torch.nn as nn
 
 from ..core.base import DataCollector, DataType
 
