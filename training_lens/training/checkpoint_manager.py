@@ -276,9 +276,16 @@ class CheckpointManager:
         metadata_path = checkpoint_path / "metadata.json"
         metadata = load_file(metadata_path, format="json") if metadata_path.exists() else {}
 
-        # Load optimizer state if exists
+        # Load optimizer state if exists (check both regular and lora paths)
         optimizer_path = checkpoint_path / "optimizer.pt"
-        optimizer_state = load_file(optimizer_path, format="torch") if optimizer_path.exists() else None
+        lora_optimizer_path = checkpoint_path / "lora_optimizer.pt"
+        
+        if optimizer_path.exists():
+            optimizer_state = load_file(optimizer_path, format="torch")
+        elif lora_optimizer_path.exists():
+            optimizer_state = load_file(lora_optimizer_path, format="torch")
+        else:
+            optimizer_state = None
 
         # Load scheduler state if exists
         scheduler_path = checkpoint_path / "scheduler.pt"
@@ -334,16 +341,23 @@ class CheckpointManager:
         Returns:
             True if deleted successfully, False otherwise
         """
-        checkpoint_path = self.checkpoint_dir / f"checkpoint-{step}"
+        # Try both regular and lora checkpoint paths
+        checkpoint_paths = [
+            self.checkpoint_dir / f"checkpoint-{step}",
+            self.checkpoint_dir / f"lora-checkpoint-{step}"
+        ]
+        
+        deleted = False
+        for checkpoint_path in checkpoint_paths:
+            if checkpoint_path.exists():
+                shutil.rmtree(checkpoint_path)
+                deleted = True
+                logger.info(f"Deleted checkpoint at {checkpoint_path}")
 
-        if checkpoint_path.exists():
-            shutil.rmtree(checkpoint_path)
-
+        if deleted:
             # Remove from index
             self.checkpoints = [cp for cp in self.checkpoints if cp["step"] != step]
             self._save_checkpoint_index()
-
-            logger.info(f"Deleted checkpoint at step {step}")
             return True
 
         return False

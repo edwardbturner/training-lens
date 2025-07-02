@@ -271,7 +271,8 @@ def _load_file_internal(filepath: Path, format: str) -> Any:
                 return pickle.load(f)
         elif format == "torch":
             if TORCH_AVAILABLE:
-                return torch.load(filepath, map_location="cpu")
+                # Use weights_only=False for compatibility with custom classes
+                return torch.load(filepath, map_location="cpu", weights_only=False)
             else:
                 raise ValueError("PyTorch not available for torch format")
         else:

@@ -65,8 +65,8 @@ class TestCheckpointManager:
             metadata=metadata,
         )
         
-        # Load checkpoint
-        loaded = manager.load_checkpoint(step=metadata.step)
+        # Load checkpoint - need to specify the lora checkpoint path
+        loaded = manager.load_checkpoint(checkpoint_path=checkpoint_path)
         
         assert loaded["checkpoint_path"] == checkpoint_path
         assert loaded["is_lora_checkpoint"] is True

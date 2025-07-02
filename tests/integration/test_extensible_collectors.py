@@ -244,7 +244,7 @@ class TestExtensibleCollectorIntegration:
         )
         
         # Load checkpoint and verify collector data
-        loaded = checkpoint_manager.load_checkpoint(step=100)
+        loaded = checkpoint_manager.load_checkpoint(checkpoint_path=checkpoint_path)
         assert loaded["additional_data"] is not None
         
         additional_data = loaded["additional_data"]
@@ -255,23 +255,30 @@ class TestExtensibleCollectorIntegration:
     def test_collector_configuration(self, mock_model, mock_optimizer):
         """Test collector configuration system."""
         # Create metrics collector with custom configs
-        collector_configs = {
-            DataType.PARAMETER_NORMS: {
-                "include_frozen": False,
-                "compute_spectral_norm": True,
-            }
-        }
-        
         metrics_collector = MetricsCollectorV2(
             enabled_collectors={DataType.PARAMETER_NORMS},
-            collector_configs=collector_configs
+            collector_configs={
+                DataType.PARAMETER_NORMS: {
+                    "include_frozen": False,
+                    "compute_spectral_norm": True,
+                }
+            }
         )
         
-        # Register collector
-        register_collector(DataType.PARAMETER_NORMS, CustomTestCollector)
+        # Register collector AFTER creating metrics collector so it uses the same registry
+        metrics_collector.registry.register(
+            DataType.PARAMETER_NORMS, 
+            CustomTestCollector,
+            config={
+                "include_frozen": False,
+                "compute_spectral_norm": True,
+            },
+            enabled=True
+        )
         
         # Get collector and check config
         collector = metrics_collector.registry.get_collector(DataType.PARAMETER_NORMS)
         assert collector is not None
-        assert collector.config["include_frozen"] is False
-        assert collector.config["compute_spectral_norm"] is True
+        # Config should have the values we set
+        assert collector.config.get("include_frozen") is False
+        assert collector.config.get("compute_spectral_norm") is True

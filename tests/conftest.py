@@ -23,13 +23,18 @@ def mock_model():
     class MockLoRALayer(torch.nn.Module):
         def __init__(self, in_features=768, out_features=768, rank=16):
             super().__init__()
-            self.lora_A = {"default": torch.nn.Linear(in_features, rank, bias=False)}
-            self.lora_B = {"default": torch.nn.Linear(rank, out_features, bias=False)}
+            # Create actual nn.Linear modules as attributes
+            self._lora_A_default = torch.nn.Linear(in_features, rank, bias=False)
+            self._lora_B_default = torch.nn.Linear(rank, out_features, bias=False)
+            
+            # Create dict-like access for compatibility
+            self.lora_A = {"default": self._lora_A_default}
+            self.lora_B = {"default": self._lora_B_default}
             self.scaling = {"default": 1.0}
             
             # Initialize weights
-            torch.nn.init.normal_(self.lora_A["default"].weight)
-            torch.nn.init.zeros_(self.lora_B["default"].weight)
+            torch.nn.init.normal_(self._lora_A_default.weight)
+            torch.nn.init.zeros_(self._lora_B_default.weight)
     
     class MockModel(torch.nn.Module):
         def __init__(self):
@@ -40,10 +45,13 @@ def mock_model():
             ])
             self.config = AutoConfig.from_pretrained("bert-base-uncased")
             
-        def named_modules(self):
-            """Override to return LoRA modules."""
-            for i, layer in enumerate(self.base_model.layers):
-                yield f"base_model.layers.{i}", layer
+        def save_pretrained(self, save_directory):
+            """Mock save_pretrained for PEFT compatibility."""
+            import os
+            os.makedirs(save_directory, exist_ok=True)
+            # Save a dummy file to simulate adapter save
+            with open(os.path.join(save_directory, "adapter_config.json"), "w") as f:
+                f.write('{"peft_type": "LORA"}')
                 
     return MockModel()
 
