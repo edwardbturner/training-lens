@@ -1,9 +1,7 @@
 """Unit tests for checkpoint manager."""
 
 import json
-from pathlib import Path
 
-import pytest
 import torch
 
 from training_lens.training.checkpoint_manager import CheckpointManager

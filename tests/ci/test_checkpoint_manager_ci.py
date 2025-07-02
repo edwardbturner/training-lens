@@ -1,7 +1,6 @@
 """CI-specific tests for checkpoint manager using lightweight fixtures."""
 
 import json
-from pathlib import Path
 
 import pytest
 import torch

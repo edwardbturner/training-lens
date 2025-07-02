@@ -1,7 +1,8 @@
 """CI-specific tests for extensible collector functionality."""
 
-import pytest
 from typing import Any, Dict, List, Optional
+
+import pytest
 import torch
 
 from training_lens.core.base import DataCollector, DataType

@@ -1,8 +1,8 @@
 """Unit tests for the collector registry."""
 
-import pytest
 from typing import Any, Dict, List, Optional
 
+import pytest
 import torch
 
 from training_lens.core.base import DataCollector, DataType
@@ -40,8 +40,6 @@ class MockCollector(DataCollector):
 
 class InvalidCollector:
     """Invalid collector that doesn't inherit from DataCollector."""
-
-    pass
 
 
 class TestCollectorRegistry:

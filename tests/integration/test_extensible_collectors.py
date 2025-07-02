@@ -1,16 +1,13 @@
 """Integration tests for extensible collector system."""
 
-import tempfile
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import pytest
 import torch
 
 from training_lens.core.base import DataCollector, DataType
 from training_lens.core.collector_registry import register_collector
 from training_lens.training.checkpoint_manager import CheckpointManager
-from training_lens.training.config import CheckpointMetadata, TrainingConfig
+from training_lens.training.config import CheckpointMetadata
 from training_lens.training.metrics_collector import MetricsCollector
 
 
@@ -210,7 +207,7 @@ class TestExtensibleCollectorIntegration:
         metrics_collector.setup(mock_model, mock_optimizer)
 
         # Collect metrics
-        metrics = metrics_collector.collect_step_metrics(step=100, logs={"train_loss": 2.5})
+        metrics_collector.collect_step_metrics(step=100, logs={"train_loss": 2.5})
 
         # Save checkpoint with collector data
         metadata = CheckpointMetadata(

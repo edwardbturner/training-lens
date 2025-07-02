@@ -1,22 +1,11 @@
 """CI-specific tests for utility functions using lightweight fixtures."""
 
+
 import pytest
 import torch
-import json
-from pathlib import Path
 
-from training_lens.utils.model_utils import (
-    get_model_size,
-    count_parameters,
-    get_lora_state_dict,
-)
-from training_lens.utils.io_utils import (
-    save_json,
-    load_json,
-    ensure_dir_exists,
-    safe_torch_save,
-    safe_torch_load,
-)
+from training_lens.utils.io_utils import ensure_dir_exists, load_json, safe_torch_load, safe_torch_save, save_json
+from training_lens.utils.model_utils import count_parameters, get_lora_state_dict, get_model_size
 
 
 @pytest.mark.ci

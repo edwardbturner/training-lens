@@ -1,15 +1,14 @@
 """CI-specific integration tests for data collectors using lightweight fixtures."""
 
+
 import pytest
 import torch
-from pathlib import Path
 
-from training_lens.core.collector_registry import CollectorRegistry
-from training_lens.core.base import DataType
-from training_lens.collectors.adapter_weights import AdapterWeightsCollector
 from training_lens.collectors.adapter_gradients import AdapterGradientsCollector
-from training_lens.collectors.activations import ActivationsCollector
-from training_lens.utils.io_utils import save_json, load_json
+from training_lens.collectors.adapter_weights import AdapterWeightsCollector
+from training_lens.core.base import DataType
+from training_lens.core.collector_registry import CollectorRegistry
+from training_lens.utils.io_utils import load_json, save_json
 
 
 @pytest.mark.ci

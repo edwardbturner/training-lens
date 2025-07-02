@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 
+from ...utils.logging import get_logger
+
 try:
     import wandb
 
@@ -15,7 +17,6 @@ try:
 except ImportError:
     WANDB_AVAILABLE = False
 
-from ...utils.logging import get_logger
 
 logger = get_logger(__name__)
 
