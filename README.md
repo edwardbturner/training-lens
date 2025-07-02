@@ -1,21 +1,23 @@
 # 🔍 Training Lens
 
-A comprehensive library for interpreting and analyzing fine-tuning training runs of machine learning models.
+A LoRA-focused library for interpreting and analyzing fine-tuning training runs with **Unsloth** integration.
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Unsloth](https://img.shields.io/badge/Powered%20by-Unsloth-green.svg)](https://github.com/unslothai/unsloth)
 
-Training Lens provides deep insights into how models evolve during training through comprehensive checkpoint analysis, real-time gradient monitoring, and automated reporting. Built for researchers, ML engineers, and anyone who wants to understand what's happening inside their model training.
+Training Lens provides deep insights into how **LoRA adapters** evolve during training through comprehensive checkpoint analysis, real-time gradient monitoring, and automated reporting. Optimized for LoRA training with Unsloth for maximum efficiency. Built for researchers, ML engineers, and anyone who wants to understand what's happening inside their LoRA adapter training.
 
 ## ✨ Features
 
-- **🔄 Real-time Training Analysis**: Monitor gradient evolution, weight changes, and training dynamics as they happen
-- **📊 Comprehensive Metrics**: Track gradient cosine similarity, weight distributions, and custom training insights  
-- **🚀 Seamless Integration**: Works with unsloth, LoRA, and standard fine-tuning workflows
-- **📈 Professional Reporting**: Generate executive summaries, technical reports, and diagnostic analyses
-- **🔗 External Integrations**: Built-in support for W&B experiment tracking and HuggingFace Hub
+- **🔄 Real-time LoRA Analysis**: Monitor LoRA adapter gradient evolution, weight changes, and training dynamics
+- **📊 LoRA-Specific Metrics**: Track adapter-specific gradient cosine similarity, weight distributions, and insights
+- **🚀 Unsloth Integration**: Built specifically for efficient LoRA training with Unsloth optimization
+- **📈 Adapter-Focused Reporting**: Generate LoRA-specific executive summaries, technical reports, and diagnostic analyses
+- **🔗 External Integrations**: Built-in support for W&B experiment tracking and HuggingFace Hub with adapter-only uploads
 - **🛠️ CLI & Python API**: Use via command line or integrate into your Python workflows
-- **📤 Data Export**: Export raw training data for custom analysis and research
+- **📤 Adapter Data Export**: Export LoRA adapter training data for custom analysis and research
+- **⚡ Efficient Checkpointing**: Save only LoRA adapter weights and gradients, not full model weights
 
 ## 🚀 Installation
 
@@ -36,130 +38,157 @@ git config core.hooksPath .githooks
 
 ## 📋 Quick Start
 
-### 1. Basic Training with Monitoring
+### 1. Basic LoRA Training with Monitoring
 
 ```python
 from training_lens import TrainingWrapper
 from training_lens.training.config import TrainingConfig
 
-# Configure training with monitoring
+# Configure LoRA training with monitoring
 config = TrainingConfig(
-    model_name="microsoft/DialoGPT-medium",
-    training_method="lora",
+    model_name="unsloth/llama-2-7b-bnb-4bit",  # Unsloth optimized model
+    training_method="lora",  # Only LoRA supported
+    lora_r=16,
+    lora_alpha=32,
+    lora_dropout=0.1,
     max_steps=1000,
     checkpoint_interval=100,
-    capture_gradients=True,
-    capture_weights=True,
+    # LoRA-specific monitoring
+    capture_adapter_gradients=True,
+    capture_adapter_weights=True,
+    upload_adapter_weights=True,
+    upload_gradients=True,
+    # Unsloth configuration
+    unsloth_load_in_4bit=True,
 )
 
-# Initialize wrapper and train
+# Initialize wrapper and train LoRA adapter
 wrapper = TrainingWrapper(config)
 results = wrapper.train(dataset=your_dataset)
 ```
 
-### 2. CLI Usage
+### 2. CLI Usage for LoRA Training
 
 ```bash
-# Initialize configuration template
-training-lens init --config-template basic --output config.yaml
+# Initialize LoRA configuration template
+training-lens init --config-template lora --output config.yaml
 
-# Train with comprehensive monitoring
+# Train LoRA adapter with comprehensive monitoring
 training-lens train --config config.yaml --dataset data.jsonl
 
-# Analyze training results
-training-lens analyze ./training_output/checkpoints --include-plots
+# Analyze LoRA training results
+training-lens analyze ./training_output/checkpoints --lora-focus --include-plots
 
-# Export raw training data
-training-lens export ./checkpoints --output ./exported --format csv
+# Export LoRA adapter training data
+training-lens export ./checkpoints --output ./exported --format csv --adapter-only
 ```
 
-### 3. Analysis and Reporting
+### 3. LoRA Analysis and Reporting
 
 ```python
 from training_lens.analysis import CheckpointAnalyzer, StandardReports
 
-# Analyze checkpoints
+# Analyze LoRA checkpoints
 analyzer = CheckpointAnalyzer("./training_output/checkpoints")
 reports = StandardReports(analyzer)
 
-# Generate executive summary
+# Generate LoRA-focused executive summary
 summary = reports.generate_executive_summary()
-print(f"Training Efficiency: {summary['model_health']['training_efficiency']}")
-print(f"Gradient Health: {summary['model_health']['gradient_health']}")
+print(f"LoRA Training Efficiency: {summary['model_health']['training_efficiency']}")
+print(f"Adapter Gradient Health: {summary['model_health']['gradient_health']}")
+print(f"Adapter Weight Stability: {summary['adapter_analysis']['weight_stability']}")
 
-# Export detailed technical report
-reports.export_report("technical", "./analysis_report.json")
+# Export detailed LoRA technical report
+reports.export_report("lora_technical", "./lora_analysis_report.json")
 ```
 
-## 🎯 Core Capabilities
+## 🎯 Core LoRA Capabilities
 
-### Training Analysis
-- **Gradient Evolution**: Track gradient direction consistency with cosine similarity
-- **Weight Dynamics**: Monitor weight distribution changes and stability
-- **Training Health**: Detect overfitting, gradient explosion/vanishing
-- **Performance Metrics**: Assess training efficiency and convergence
+### LoRA Training Analysis
+- **Adapter Gradient Evolution**: Track LoRA adapter gradient direction consistency with cosine similarity
+- **Adapter Weight Dynamics**: Monitor LoRA weight distribution changes and stability
+- **Base Model Monitoring**: Verify base model weights remain frozen during LoRA training
+- **LoRA Health Detection**: Detect adapter-specific issues like rank collapse or ineffective adaptation
+- **Performance Metrics**: Assess LoRA training efficiency and convergence
 
-### Integration Features
-- **Weights & Biases**: Real-time experiment tracking and metrics logging
-- **HuggingFace Hub**: Automatic model and checkpoint uploads to `training_lens_checkpoints/` folder
-- **Multiple Formats**: Export data as JSON, CSV, NumPy arrays, or Parquet
+### Unsloth Integration Features
+- **Optimized Training**: Leverage Unsloth's 2x+ speed improvements for LoRA training
+- **Memory Efficiency**: Reduced memory usage with 4-bit quantization and gradient checkpointing
+- **Automatic Target Modules**: Smart detection of optimal LoRA target modules
 
-### Reporting & Visualization
-- **Executive Summaries**: High-level training insights for stakeholders
-- **Technical Reports**: Detailed analysis for researchers and engineers
-- **Diagnostic Analysis**: Automated issue detection with recommendations
-- **Interactive Plots**: Training curves, gradient evolution, weight distributions
+### LoRA-Specific Integrations
+- **Weights & Biases**: Real-time LoRA adapter experiment tracking and metrics logging
+- **HuggingFace Hub**: Automatic LoRA adapter uploads to `training_lens_checkpoints/` folder (adapter-only)
+- **Multiple Formats**: Export LoRA adapter data as JSON, CSV, NumPy arrays, or Parquet
+
+### LoRA Reporting & Visualization
+- **LoRA Executive Summaries**: High-level adapter training insights for stakeholders
+- **Adapter Technical Reports**: Detailed LoRA analysis for researchers and engineers
+- **LoRA Diagnostic Analysis**: Automated adapter-specific issue detection with recommendations
+- **Adapter Plots**: LoRA training curves, adapter gradient evolution, weight distributions
 
 ## 🔧 Configuration
 
 Create configuration files for reproducible training:
 
 ```yaml
-# config.yaml
-model_name: "microsoft/DialoGPT-medium"
-training_method: "lora"
+# config.yaml - LoRA Training Configuration
+model_name: "unsloth/llama-2-7b-bnb-4bit"  # Unsloth optimized model
+training_method: "lora"  # Only LoRA supported in training_lens
 lora_r: 32
 lora_alpha: 64
+lora_dropout: 0.1
+target_modules: null  # Auto-detect optimal modules
 max_steps: 5000
 checkpoint_interval: 250
-learning_rate: 1e-4
-wandb_project: "my-training-project"
-hf_hub_repo: "username/my-model"
-capture_gradients: true
-capture_weights: true
+learning_rate: 2e-4
+# LoRA-specific monitoring
+capture_adapter_gradients: true
+capture_adapter_weights: true
+upload_adapter_weights: true
+upload_gradients: true
+# Unsloth configuration
+unsloth_load_in_4bit: true
+unsloth_max_seq_length: 2048
+# Integrations
+wandb_project: "my-lora-training-project"
+hf_hub_repo: "username/my-lora-adapter"
 ```
 
 ## 📊 Analysis Examples
 
-### Gradient Consistency Analysis
+### LoRA Adapter Gradient Consistency Analysis
 ```python
 from training_lens.analysis import GradientAnalyzer
 
-# Analyze gradient evolution
-grad_analyzer = GradientAnalyzer(gradient_data)
-consistency = grad_analyzer.analyze_gradient_consistency()
-print(f"Mean cosine similarity: {consistency['mean_similarity']:.3f}")
-print(f"Consistency level: {consistency['consistency_level']}")
+# Analyze LoRA adapter gradient evolution
+grad_analyzer = GradientAnalyzer(adapter_gradient_data)
+consistency = grad_analyzer.analyze_adapter_gradient_consistency()
+print(f"LoRA mean cosine similarity: {consistency['mean_similarity']:.3f}")
+print(f"Adapter consistency level: {consistency['consistency_level']}")
+print(f"Base model frozen: {consistency['base_model_stable']}")
 ```
 
-### Weight Evolution Tracking
+### LoRA Weight Evolution Tracking
 ```python
 from training_lens.analysis import WeightAnalyzer
 
-# Analyze weight changes
-weight_analyzer = WeightAnalyzer(weight_data)
-evolution = weight_analyzer.analyze_weight_evolution()
-print(f"Weight stability: {evolution['stability_assessment']['stability_level']}")
+# Analyze LoRA adapter weight changes
+weight_analyzer = WeightAnalyzer(adapter_weight_data)
+evolution = weight_analyzer.analyze_adapter_weight_evolution()
+print(f"Adapter weight stability: {evolution['stability_assessment']['stability_level']}")
+print(f"Rank utilization: {evolution['rank_analysis']['effective_rank']}/{evolution['rank_analysis']['configured_rank']}")
 ```
 
-### Training Diagnostics
+### LoRA Training Diagnostics
 ```python
-# Generate comprehensive diagnostics
-diagnostics = reports.generate_training_diagnostics()
-print(f"Overall health: {diagnostics['overall_health']}")
+# Generate comprehensive LoRA diagnostics
+diagnostics = reports.generate_lora_training_diagnostics()
+print(f"Overall LoRA health: {diagnostics['overall_health']}")
+print(f"Adapter learning progress: {diagnostics['adapter_progress']}")
 
-# Show recommendations
-for rec in diagnostics['recommendations']:
+# Show LoRA-specific recommendations
+for rec in diagnostics['lora_recommendations']:
     print(f"• {rec}")
 ```
 
@@ -237,9 +266,11 @@ training-lens/
 
 Explore comprehensive examples in the [`examples/`](examples/) directory:
 
-- [`basic_training_example.py`](examples/basic_training_example.py): Simple training with monitoring
-- [`advanced_training_example.py`](examples/advanced_training_example.py): Full-featured training with integrations
-- [`analysis_example.py`](examples/analysis_example.py): Post-training analysis and reporting
+- [`basic_training_example.py`](examples/basic_training_example.py): Simple LoRA training with monitoring
+- [`advanced_training_example.py`](examples/advanced_training_example.py): Full-featured LoRA training with integrations
+- [`analysis_example.py`](examples/analysis_example.py): Post-training LoRA analysis and reporting
+- [`lora_optimization_example.py`](examples/lora_optimization_example.py): LoRA hyperparameter optimization
+- [`unsloth_integration_example.py`](examples/unsloth_integration_example.py): Advanced Unsloth features
 
 ## 🤝 Contributing
 
@@ -253,11 +284,12 @@ We welcome contributions! Here's how to get started:
 
 ### Areas for Contribution
 
-- **New Analysis Methods**: Additional metrics and insights
-- **Visualization Improvements**: Enhanced charts and dashboards  
-- **Integration Support**: Additional external service integrations
-- **Performance Optimizations**: Faster analysis and reduced memory usage
-- **Documentation**: Examples, tutorials, and API documentation
+- **LoRA Analysis Methods**: Additional LoRA-specific metrics and insights
+- **Unsloth Optimizations**: Enhanced integration with Unsloth features
+- **Adapter Visualizations**: Enhanced LoRA-specific charts and dashboards
+- **Integration Support**: Additional external service integrations for LoRA workflows
+- **Performance Optimizations**: Faster LoRA analysis and reduced memory usage
+- **Documentation**: LoRA examples, tutorials, and API documentation
 
 ## 📄 License
 
@@ -278,4 +310,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-*Training Lens - See what your models learn* 🔍
+*Training Lens - See what your LoRA adapters learn* 🔍⚡

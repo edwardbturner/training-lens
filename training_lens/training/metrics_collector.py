@@ -14,26 +14,32 @@ logger = get_logger(__name__)
 
 
 class MetricsCollector:
-    """Collects comprehensive training metrics for analysis."""
+    """Collects LoRA-focused training metrics for analysis."""
 
     def __init__(
         self,
-        capture_gradients: bool = True,
-        capture_weights: bool = True,
-        capture_activations: bool = False,
+        capture_adapter_gradients: bool = True,
+        capture_adapter_weights: bool = True,
+        capture_lora_activations: bool = False,
+        upload_adapter_weights: bool = True,
+        upload_gradients: bool = True,
         gradient_history_size: int = 100,
     ):
-        """Initialize metrics collector.
+        """Initialize LoRA-focused metrics collector.
 
         Args:
-            capture_gradients: Whether to capture gradient information
-            capture_weights: Whether to capture weight information
-            capture_activations: Whether to capture activation patterns
+            capture_adapter_gradients: Whether to capture LoRA adapter gradient information
+            capture_adapter_weights: Whether to capture LoRA adapter weight information
+            capture_lora_activations: Whether to capture LoRA activation patterns
+            upload_adapter_weights: Whether to upload adapter weights to checkpoints
+            upload_gradients: Whether to upload gradients to checkpoints
             gradient_history_size: Number of gradient vectors to keep for analysis
         """
-        self.capture_gradients = capture_gradients
-        self.capture_weights = capture_weights
-        self.capture_activations = capture_activations
+        self.capture_adapter_gradients = capture_adapter_gradients
+        self.capture_adapter_weights = capture_adapter_weights
+        self.capture_lora_activations = capture_lora_activations
+        self.upload_adapter_weights = upload_adapter_weights
+        self.upload_gradients = upload_gradients
         self.gradient_history_size = gradient_history_size
 
         # Storage for metrics
@@ -46,9 +52,10 @@ class MetricsCollector:
         self.model: Optional[torch.nn.Module] = None
         self.optimizer: Optional[torch.optim.Optimizer] = None
 
-        # Layer-wise tracking
-        self.layer_names: List[str] = []
-        self.layer_gradients: Dict[str, deque] = defaultdict(lambda: deque(maxlen=gradient_history_size))
+        # LoRA adapter tracking
+        self.lora_layer_names: List[str] = []
+        self.adapter_gradients: Dict[str, deque] = defaultdict(lambda: deque(maxlen=gradient_history_size))
+        self.adapter_weight_changes: Dict[str, List[float]] = defaultdict(list)
 
         logger.debug("MetricsCollector initialized")
 
@@ -62,10 +69,13 @@ class MetricsCollector:
         self.model = model
         self.optimizer = optimizer
 
-        # Get trainable parameter names
-        self.layer_names = [name for name, param in model.named_parameters() if param.requires_grad]
-
-        logger.info(f"MetricsCollector setup with {len(self.layer_names)} trainable layers")
+        # Get LoRA adapter parameter names
+        self.lora_layer_names = [name for name, param in model.named_parameters() 
+                                if param.requires_grad and ('lora' in name.lower() or 'adapter' in name.lower())]
+        
+        total_trainable = sum(1 for name, param in model.named_parameters() if param.requires_grad)
+        
+        logger.info(f"MetricsCollector setup with {len(self.lora_layer_names)} LoRA layers out of {total_trainable} trainable layers")
 
     def collect_step_metrics(
         self,
@@ -103,104 +113,135 @@ class MetricsCollector:
             metrics["gpu_memory_allocated_mb"] = self._parse_memory_size(gpu_memory_stats["allocated"])
             metrics["gpu_memory_percent"] = float(gpu_memory_stats["percent"].rstrip("%"))
 
-        # Gradient metrics
-        if self.capture_gradients and model is not None:
-            gradient_metrics = self._collect_gradient_metrics(model, step)
-            metrics.update(gradient_metrics)
+        # LoRA adapter gradient metrics
+        if self.capture_adapter_gradients and model is not None:
+            adapter_gradient_metrics = self._collect_adapter_gradient_metrics(model, step)
+            metrics.update(adapter_gradient_metrics)
 
-        # Weight metrics
-        if self.capture_weights and model is not None:
-            weight_metrics = self._collect_weight_metrics(model, step)
-            metrics.update(weight_metrics)
+        # LoRA adapter weight metrics
+        if self.capture_adapter_weights and model is not None:
+            adapter_weight_metrics = self._collect_adapter_weight_metrics(model, step)
+            metrics.update(adapter_weight_metrics)
 
         # Store step metrics
         self.step_metrics[step] = metrics
 
         return metrics
 
-    def _collect_gradient_metrics(self, model: torch.nn.Module, step: int) -> Dict[str, Any]:
-        """Collect gradient-related metrics."""
+    def _collect_adapter_gradient_metrics(self, model: torch.nn.Module, step: int) -> Dict[str, Any]:
+        """Collect LoRA adapter gradient-related metrics."""
         gradient_metrics = {}
 
-        # Calculate gradient norms
-        total_norm = 0.0
-        layer_norms = {}
-        gradient_vector: List[float] = []
+        # Calculate LoRA adapter gradient norms
+        adapter_total_norm = 0.0
+        adapter_layer_norms = {}
+        adapter_gradient_vector: List[float] = []
+        
+        # Base model gradient norms for comparison
+        base_total_norm = 0.0
+        base_layer_norms = {}
 
         for name, param in model.named_parameters():
-            if param.grad is not None:
+            if param.grad is not None and param.requires_grad:
                 param_norm = param.grad.data.norm(2).item()
-                total_norm += param_norm**2
-                layer_norms[name] = param_norm
+                
+                if 'lora' in name.lower() or 'adapter' in name.lower():
+                    # LoRA adapter parameters
+                    adapter_total_norm += param_norm**2
+                    adapter_layer_norms[name] = param_norm
+                    # Flatten gradient for vector analysis
+                    adapter_gradient_vector.extend(param.grad.data.flatten().cpu().numpy())
+                else:
+                    # Base model parameters (should be frozen in LoRA)
+                    base_total_norm += param_norm**2
+                    base_layer_norms[name] = param_norm
 
-                # Flatten gradient for vector analysis
-                gradient_vector.extend(param.grad.data.flatten().cpu().numpy())
+        adapter_total_norm = adapter_total_norm**0.5
+        base_total_norm = base_total_norm**0.5
+        
+        gradient_metrics["adapter_grad_norm"] = adapter_total_norm
+        gradient_metrics["base_grad_norm"] = base_total_norm
+        gradient_metrics["adapter_layer_grad_norms"] = adapter_layer_norms
+        gradient_metrics["base_layer_grad_norms"] = base_layer_norms
 
-        total_norm = total_norm**0.5
-        gradient_metrics["grad_norm"] = total_norm
-        gradient_metrics["layer_grad_norms"] = layer_norms
+        # Store adapter gradient vector for cosine similarity analysis
+        if adapter_gradient_vector:
+            adapter_gradient_vector_array = np.array(adapter_gradient_vector)
+            self.gradient_norms_history.append(adapter_gradient_vector_array)
 
-        # Store gradient vector for cosine similarity analysis
-        if gradient_vector:
-            gradient_vector_array = np.array(gradient_vector)
-            self.gradient_norms_history.append(gradient_vector_array)
-
-            # Calculate cosine similarity with previous gradient
+            # Calculate cosine similarity with previous adapter gradient
             if len(self.gradient_norms_history) >= 2:
                 cosine_sim = self._calculate_gradient_cosine_similarity()
-                gradient_metrics["grad_cosine_similarity"] = cosine_sim
+                gradient_metrics["adapter_grad_cosine_similarity"] = cosine_sim
                 self.cosine_similarities.append(cosine_sim)
 
-            # Store layer-wise gradients
+            # Store LoRA adapter layer-wise gradients
             for name, param in model.named_parameters():
-                if param.grad is not None:
+                if param.grad is not None and ('lora' in name.lower() or 'adapter' in name.lower()):
                     layer_grad_norm = param.grad.data.norm(2).item()
-                    self.layer_gradients[name].append(layer_grad_norm)
+                    self.adapter_gradients[name].append(layer_grad_norm)
 
         return gradient_metrics
 
-    def _collect_weight_metrics(self, model: torch.nn.Module, step: int) -> Dict[str, Any]:
-        """Collect weight-related metrics."""
+    def _collect_adapter_weight_metrics(self, model: torch.nn.Module, step: int) -> Dict[str, Any]:
+        """Collect LoRA adapter weight-related metrics."""
         weight_metrics = {}
 
-        # Calculate weight statistics
-        total_weights = 0
-        weight_norms: Dict[str, float] = {}
-        weight_means: Dict[str, float] = {}
-        weight_stds: Dict[str, float] = {}
+        # Calculate LoRA adapter weight statistics
+        adapter_total_weights = 0
+        adapter_weight_norms: Dict[str, float] = {}
+        adapter_weight_means: Dict[str, float] = {}
+        adapter_weight_stds: Dict[str, float] = {}
+        
+        # Base model weight statistics for comparison
+        base_total_weights = 0
+        base_weight_norms: Dict[str, float] = {}
 
         for name, param in model.named_parameters():
             if param.requires_grad:
                 weight_data = param.data
-
                 weight_norm = weight_data.norm(2).item()
                 weight_mean = weight_data.mean().item()
                 weight_std = weight_data.std().item()
+                
+                if 'lora' in name.lower() or 'adapter' in name.lower():
+                    # LoRA adapter parameters
+                    adapter_weight_norms[name] = weight_norm
+                    adapter_weight_means[name] = weight_mean
+                    adapter_weight_stds[name] = weight_std
+                    adapter_total_weights += weight_data.numel()
+                else:
+                    # Base model parameters
+                    base_weight_norms[name] = weight_norm
+                    base_total_weights += weight_data.numel()
 
-                weight_norms[name] = weight_norm
-                weight_means[name] = weight_mean
-                weight_stds[name] = weight_std
+        weight_metrics["adapter_total_parameters"] = adapter_total_weights
+        weight_metrics["base_total_parameters"] = base_total_weights
+        weight_metrics["adapter_weight_norms"] = adapter_weight_norms
+        weight_metrics["adapter_weight_means"] = adapter_weight_means
+        weight_metrics["adapter_weight_stds"] = adapter_weight_stds
+        weight_metrics["base_weight_norms"] = base_weight_norms
 
-                total_weights += weight_data.numel()
+        # Overall LoRA adapter weight statistics
+        adapter_weights = torch.cat([param.data.flatten() for name, param in model.named_parameters() 
+                                   if param.requires_grad and ('lora' in name.lower() or 'adapter' in name.lower())])
+        if len(adapter_weights) > 0:
+            weight_metrics["adapter_overall_norm"] = adapter_weights.norm(2).item()
+            weight_metrics["adapter_overall_mean"] = adapter_weights.mean().item()
+            weight_metrics["adapter_overall_std"] = adapter_weights.std().item()
+        else:
+            weight_metrics["adapter_overall_norm"] = 0.0
+            weight_metrics["adapter_overall_mean"] = 0.0
+            weight_metrics["adapter_overall_std"] = 0.0
 
-        weight_metrics["total_parameters"] = total_weights
-        weight_metrics["layer_weight_norms"] = weight_norms
-        weight_metrics["layer_weight_means"] = weight_means
-        weight_metrics["layer_weight_stds"] = weight_stds
-
-        # Overall weight statistics
-        all_weights = torch.cat([param.data.flatten() for param in model.parameters() if param.requires_grad])
-        weight_metrics["overall_weight_norm"] = all_weights.norm(2).item()
-        weight_metrics["overall_weight_mean"] = all_weights.mean().item()
-        weight_metrics["overall_weight_std"] = all_weights.std().item()
-
-        # Store weight statistics for trend analysis
+        # Store adapter weight statistics for trend analysis
         weight_stats = {
             "step": step,
-            "overall_norm": weight_metrics["overall_weight_norm"],
-            "overall_mean": weight_metrics["overall_weight_mean"],
-            "overall_std": weight_metrics["overall_weight_std"],
-            "layer_norms": weight_norms.copy(),
+            "adapter_overall_norm": weight_metrics["adapter_overall_norm"],
+            "adapter_overall_mean": weight_metrics["adapter_overall_mean"],
+            "adapter_overall_std": weight_metrics["adapter_overall_std"],
+            "adapter_layer_norms": adapter_weight_norms.copy(),
+            "base_layer_norms": base_weight_norms.copy(),
         }
         self.weight_stats_history.append(weight_stats)
 
@@ -254,19 +295,29 @@ class MetricsCollector:
             "total_samples": len(self.cosine_similarities),
         }
 
+    def get_adapter_checkpoint_data(self) -> Dict[str, Any]:
+        """Get LoRA adapter data to save with checkpoints.
+
+        Returns:
+            Dictionary containing LoRA adapter metrics data for checkpoint
+        """
+        return {
+            "adapter_gradient_cosine_similarities": self.cosine_similarities.copy(),
+            "adapter_weight_stats_history": self.weight_stats_history.copy(),
+            "adapter_gradient_history_length": len(self.gradient_norms_history),
+            "lora_layer_names": self.lora_layer_names.copy(),
+            "adapter_cosine_similarity_trend": self.get_gradient_cosine_similarity_trend(),
+            "upload_adapter_weights": self.upload_adapter_weights,
+            "upload_gradients": self.upload_gradients,
+        }
+        
     def get_checkpoint_data(self) -> Dict[str, Any]:
-        """Get data to save with checkpoints.
+        """Get data to save with checkpoints (backward compatibility).
 
         Returns:
             Dictionary containing metrics data for checkpoint
         """
-        return {
-            "gradient_cosine_similarities": self.cosine_similarities.copy(),
-            "weight_stats_history": self.weight_stats_history.copy(),
-            "gradient_history_length": len(self.gradient_norms_history),
-            "layer_names": self.layer_names.copy(),
-            "cosine_similarity_trend": self.get_gradient_cosine_similarity_trend(),
-        }
+        return self.get_adapter_checkpoint_data()
 
     def get_step_metrics(self, step: int) -> Optional[Dict[str, Any]]:
         """Get metrics for a specific step.
@@ -300,8 +351,11 @@ class MetricsCollector:
 
         # Training progress metrics
         train_losses = [self.step_metrics[step].get("train_loss", 0) for step in steps]
-        grad_norms = [
-            self.step_metrics[step].get("grad_norm", 0) for step in steps if "grad_norm" in self.step_metrics[step]
+        adapter_grad_norms = [
+            self.step_metrics[step].get("adapter_grad_norm", 0) for step in steps if "adapter_grad_norm" in self.step_metrics[step]
+        ]
+        base_grad_norms = [
+            self.step_metrics[step].get("base_grad_norm", 0) for step in steps if "base_grad_norm" in self.step_metrics[step]
         ]
 
         summary = {
@@ -310,8 +364,10 @@ class MetricsCollector:
             "last_step": max(steps) if steps else 0,
             "train_loss_final": train_losses[-1] if train_losses else None,
             "train_loss_initial": train_losses[0] if train_losses else None,
-            "grad_norm_mean": np.mean(grad_norms) if grad_norms else None,
-            "grad_norm_std": np.std(grad_norms) if grad_norms else None,
+            "adapter_grad_norm_mean": np.mean(adapter_grad_norms) if adapter_grad_norms else None,
+            "adapter_grad_norm_std": np.std(adapter_grad_norms) if adapter_grad_norms else None,
+            "base_grad_norm_mean": np.mean(base_grad_norms) if base_grad_norms else None,
+            "base_grad_norm_std": np.std(base_grad_norms) if base_grad_norms else None,
             "cosine_similarity_analysis": self.get_gradient_cosine_similarity_trend(),
         }
 

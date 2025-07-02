@@ -8,6 +8,7 @@ from ..utils.logging import get_logger, setup_logging
 from .analyze import analyze_command
 from .export import export_command
 from .train import train_command
+from .activations import activations
 
 # Setup logging
 setup_logging("INFO")
@@ -36,6 +37,7 @@ def cli(verbose: bool, log_file: str) -> None:
 cli.add_command(train_command, name="train")
 cli.add_command(analyze_command, name="analyze")
 cli.add_command(export_command, name="export")
+cli.add_command(activations, name="activations")
 
 
 @cli.command()

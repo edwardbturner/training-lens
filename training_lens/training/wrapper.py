@@ -65,9 +65,11 @@ class TrainingWrapper:
         )
 
         self.metrics_collector = MetricsCollector(
-            capture_gradients=config.capture_gradients,
-            capture_weights=config.capture_weights,
-            capture_activations=config.capture_activations,
+            capture_adapter_gradients=config.capture_adapter_gradients,
+            capture_adapter_weights=config.capture_adapter_weights,
+            capture_lora_activations=config.capture_lora_activations,
+            upload_adapter_weights=config.upload_adapter_weights,
+            upload_gradients=config.upload_gradients,
         )
 
         # Initialize integrations
@@ -100,46 +102,38 @@ class TrainingWrapper:
         """Set up model and tokenizer based on configuration."""
         self.logger.info(f"Loading model: {self.config.model_name}")
 
-        if self.config.training_method == "lora":
-            # Use unsloth for LoRA training
-            self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-                model_name=self.config.model_name,
-                max_seq_length=self.config.max_seq_length,
-                dtype=None,  # Auto-detect
-                load_in_4bit=self.config.load_in_4bit,
-            )
+        # Use Unsloth for LoRA training (training_lens is now LoRA-only)
+        unsloth_config = self.config.get_unsloth_config()
+        
+        self.model, self.tokenizer = FastLanguageModel.from_pretrained(
+            model_name=self.config.model_name,
+            max_seq_length=unsloth_config["max_seq_length"],
+            dtype=unsloth_config["dtype"],
+            load_in_4bit=unsloth_config["load_in_4bit"],
+        )
 
-            # Set up LoRA configuration
-            self.model = FastLanguageModel.get_peft_model(
-                self.model,
-                r=self.config.lora_r,
-                target_modules=self.config.target_modules
-                or [
-                    "q_proj",
-                    "k_proj",
-                    "v_proj",
-                    "o_proj",
-                    "gate_proj",
-                    "up_proj",
-                    "down_proj",
-                ],
-                lora_alpha=self.config.lora_alpha,
-                lora_dropout=self.config.lora_dropout,
-                bias="none",
-                use_gradient_checkpointing="unsloth",
-                random_state=3407,
-                use_rslora=False,
-                loftq_config=None,
-            )
-
-        else:
-            # Full fine-tuning
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.config.model_name,
-                torch_dtype=torch.float16 if self.config.fp16 else torch.float32,
-                device_map="auto",
-            )
-            self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
+        # Set up LoRA configuration with Unsloth
+        self.model = FastLanguageModel.get_peft_model(
+            self.model,
+            r=self.config.lora_r,
+            target_modules=self.config.target_modules
+            or [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ],
+            lora_alpha=self.config.lora_alpha,
+            lora_dropout=self.config.lora_dropout,
+            bias="none",
+            use_gradient_checkpointing="unsloth",
+            random_state=3407,
+            use_rslora=False,
+            loftq_config=None,
+        )
 
         # Set up tokenizer
         assert self.tokenizer is not None, "Tokenizer must be initialized"
@@ -391,26 +385,27 @@ class TrainingWrapper:
                     grad_norm=logs.get("grad_norm"),
                 )
 
-                # Save checkpoint locally
-                checkpoint_path = self.wrapper.checkpoint_manager.save_checkpoint(
+                # Save checkpoint locally with LoRA adapter focus
+                checkpoint_path = self.wrapper.checkpoint_manager.save_lora_checkpoint(
                     self.wrapper.model,
                     self.wrapper.tokenizer,
                     self.wrapper.trainer.optimizer,
                     self.wrapper.trainer.lr_scheduler,
                     metadata,
-                    self.wrapper.metrics_collector.get_checkpoint_data(),
+                    self.wrapper.metrics_collector.get_adapter_checkpoint_data(),
                 )
 
-                # Upload to HuggingFace if configured
+                # Upload adapter weights and gradients to HuggingFace if configured
                 if self.wrapper.hf_integration:
                     try:
-                        self.wrapper.hf_integration.upload_checkpoint(
+                        self.wrapper.hf_integration.upload_lora_checkpoint(
                             checkpoint_path,
                             state.global_step,
                             metadata.to_dict(),
+                            upload_adapter_only=True,
                         )
                     except Exception as e:
-                        self.wrapper.logger.warning(f"Failed to upload checkpoint: {e}")
+                        self.wrapper.logger.warning(f"Failed to upload LoRA checkpoint: {e}")
 
                 self.wrapper.logger.log_checkpoint_saved(state.global_step, checkpoint_path)
 
@@ -425,6 +420,8 @@ class TrainingWrapper:
             "training_time_hours": f"{training_time/3600:.2f}h",
             "steps_per_second": f"{train_result.global_step/training_time:.2f}",
             "model_name": self.config.model_name,
-            "training_method": self.config.training_method,
+            "training_method": "lora",
+            "lora_r": self.config.lora_r,
+            "lora_alpha": self.config.lora_alpha,
             "checkpoints_saved": len(self.checkpoint_manager.list_checkpoints()),
         }

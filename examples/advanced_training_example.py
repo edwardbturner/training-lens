@@ -32,9 +32,10 @@ def prepare_dataset():
         conversations = []
         for example in dataset:
             # Type-safe access to dataset fields
-            question = str(example.get("question", ""))
-            context = str(example.get("context", ""))
-            answers = example.get("answers", {})
+            example_dict = dict(example)  # Convert to dict for type safety
+            question = str(example_dict.get("question", ""))
+            context = str(example_dict.get("context", ""))
+            answers = example_dict.get("answers", {})
             answer_texts = answers.get("text", []) if isinstance(answers, dict) else []
 
             conversations.append(
@@ -197,8 +198,7 @@ def main():
 
             # Import analysis modules with proper error handling
             try:
-                from training_lens.analysis import CheckpointAnalyzer
-                from training_lens.analysis.specialized import GradientAnalyzer, StandardReports
+                from training_lens.analysis import CheckpointAnalyzer, GradientAnalyzer, StandardReports
             except ImportError as e:
                 print(f"   ⚠️  Analysis modules not available: {e}")
                 print("   Skipping advanced analysis...")

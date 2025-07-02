@@ -39,8 +39,8 @@ class TrainingConfig(BaseModel):  # type: ignore[misc]
     max_seq_length: int = 2048
     load_in_4bit: bool = True
 
-    # Training method configuration
-    training_method: Literal["lora", "full"] = "lora"
+    # LoRA configuration (training_lens now focuses exclusively on LoRA)
+    training_method: Literal["lora"] = "lora"
     lora_r: int = 16
     lora_alpha: int = 32
     lora_dropout: float = 0.1
@@ -48,7 +48,7 @@ class TrainingConfig(BaseModel):  # type: ignore[misc]
 
     # Training parameters
     per_device_train_batch_size: int = 2
-    gradient_accumulation_steps: int = 4
+    gradient_accumulation_steps: int = 8
     warmup_steps: int = 5
     max_steps: int = 1000
     learning_rate: float = 2e-4
@@ -60,6 +60,11 @@ class TrainingConfig(BaseModel):  # type: ignore[misc]
     save_strategy: str = "steps"
     save_steps: int = 1
 
+    # LoRA adapter upload configuration
+    upload_adapter_weights: bool = True
+    upload_gradients: bool = True
+    adapter_upload_interval: int = 1
+
     # Output configuration
     output_dir: Union[str, Path] = "./training_output"
     logging_dir: Optional[Union[str, Path]] = None
@@ -69,10 +74,16 @@ class TrainingConfig(BaseModel):  # type: ignore[misc]
     wandb_run_name: Optional[str] = None
     hf_hub_repo: Optional[str] = None
 
-    # Analysis settings
-    capture_gradients: bool = True
-    capture_weights: bool = True
-    capture_activations: bool = False
+    # Analysis settings (LoRA-focused)
+    capture_adapter_gradients: bool = True
+    capture_adapter_weights: bool = True
+    capture_base_model_changes: bool = False
+    capture_lora_activations: bool = True
+
+    # Unsloth-specific settings
+    unsloth_max_seq_length: Optional[int] = None
+    unsloth_dtype: Optional[str] = None
+    unsloth_load_in_4bit: bool = True
 
     @field_validator("output_dir", "logging_dir")
     @classmethod
@@ -284,13 +295,16 @@ class TrainingConfig(BaseModel):  # type: ignore[misc]
         if self.learning_rate < 1e-5:
             warnings.append(f"Very low learning rate ({self.learning_rate}) may cause slow convergence")
 
-        # Check for LoRA configuration issues
-        if self.training_method == "lora":
-            if self.lora_alpha < self.lora_r:
-                warnings.append("lora_alpha should typically be >= lora_r for optimal performance")
+        # LoRA configuration validation (always applies since we're LoRA-only)
+        if self.lora_alpha < self.lora_r:
+            warnings.append("lora_alpha should typically be >= lora_r for optimal performance")
 
-            if self.lora_dropout > 0.3:
-                warnings.append(f"High LoRA dropout ({self.lora_dropout}) may hurt performance")
+        if self.lora_dropout > 0.3:
+            warnings.append(f"High LoRA dropout ({self.lora_dropout}) may hurt performance")
+
+        # Unsloth-specific validation
+        if self.unsloth_max_seq_length and self.unsloth_max_seq_length != self.max_seq_length:
+            warnings.append("unsloth_max_seq_length should match max_seq_length or be None")
 
         # Check for checkpoint frequency
         if self.checkpoint_interval > self.max_steps // 10:
@@ -353,6 +367,23 @@ class TrainingConfig(BaseModel):  # type: ignore[misc]
         """Get total number of training steps."""
         return self.max_steps
 
+    def get_unsloth_config(self) -> Dict[str, Any]:
+        """Get Unsloth-specific configuration."""
+        return {
+            "max_seq_length": self.unsloth_max_seq_length or self.max_seq_length,
+            "dtype": self.unsloth_dtype,
+            "load_in_4bit": self.unsloth_load_in_4bit,
+        }
+
+    def get_lora_config(self) -> Dict[str, Any]:
+        """Get LoRA configuration for PEFT."""
+        return {
+            "r": self.lora_r,
+            "lora_alpha": self.lora_alpha,
+            "lora_dropout": self.lora_dropout,
+            "target_modules": self.target_modules,
+        }
+
     def get_learning_rate_schedule(self) -> Dict[str, Any]:
         """Get learning rate schedule configuration."""
         return {
@@ -387,6 +418,13 @@ class CheckpointMetadata:
     model_config: Optional[Dict[str, Any]] = None
     optimizer_config: Optional[Dict[str, Any]] = None
     additional_metrics: Dict[str, Any] = field(default_factory=dict)
+
+    # LoRA-specific metadata
+    lora_r: Optional[int] = None
+    lora_alpha: Optional[int] = None
+    lora_target_modules: Optional[List[str]] = None
+    adapter_weights_uploaded: bool = False
+    base_model_frozen: bool = True
 
     def __post_init__(self) -> None:
         """Validate metadata after initialization."""

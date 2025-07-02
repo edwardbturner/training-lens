@@ -1,4 +1,4 @@
-"""Checkpoint analysis for extracting training insights."""
+"""LoRA checkpoint analysis for extracting adapter training insights."""
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 class CheckpointAnalyzer:
-    """Analyzes training checkpoints to extract insights."""
+    """Analyzes LoRA training checkpoints to extract adapter-specific insights."""
 
     def __init__(
         self,
@@ -150,15 +150,19 @@ class CheckpointAnalyzer:
         if checkpoint_info is not None:
             checkpoint_path = Path(checkpoint_info["path"])
 
-            # Try to load training lens data locally
+            # Try to load LoRA training lens data locally
+            lora_training_data_path = checkpoint_path / "lora_training_data.pt"
             training_lens_data_path = checkpoint_path / "additional_data.pt"
-            if training_lens_data_path.exists():
-                try:
-                    data = load_file(training_lens_data_path, format="torch")
-                    self.metrics_data[step] = data
-                    return data if isinstance(data, dict) else None
-                except Exception as e:
-                    logger.warning(f"Failed to load local training lens data for step {step}: {e}")
+            
+            # Prefer LoRA-specific data if available
+            for data_path in [lora_training_data_path, training_lens_data_path]:
+                if data_path.exists():
+                    try:
+                        data = load_file(data_path, format="torch")
+                        self.metrics_data[step] = data
+                        return data if isinstance(data, dict) else None
+                    except Exception as e:
+                        logger.warning(f"Failed to load local training lens data for step {step}: {e}")
 
         # If local loading failed and HuggingFace integration is available, try downloading
         if self.hf_integration and self.auto_download:
@@ -168,11 +172,15 @@ class CheckpointAnalyzer:
                 # Download checkpoint from HuggingFace
                 downloaded_path = self.hf_integration.download_checkpoint(step, self.checkpoint_dir.parent)
 
-                # Try to load the downloaded data
+                # Try to load the downloaded LoRA data
+                lora_training_data_path = downloaded_path / "lora_training_data.pt"
                 training_lens_data_path = downloaded_path / "additional_data.pt"
-                if training_lens_data_path.exists():
-                    data = load_file(training_lens_data_path, format="torch")
-                    self.metrics_data[step] = data
+                
+                for data_path in [lora_training_data_path, training_lens_data_path]:
+                    if data_path.exists():
+                        data = load_file(data_path, format="torch")
+                        self.metrics_data[step] = data
+                        break
 
                     # Update checkpoint info to include downloaded checkpoint
                     new_checkpoint_info = {
@@ -208,11 +216,11 @@ class CheckpointAnalyzer:
         logger.warning(f"Checkpoint {step} found but no metrics data available")
         return None
 
-    def analyze_gradient_evolution(self) -> Dict[str, Any]:
-        """Analyze how gradients evolve during training.
+    def analyze_adapter_gradient_evolution(self) -> Dict[str, Any]:
+        """Analyze how LoRA adapter gradients evolve during training.
 
         Returns:
-            Dictionary containing gradient evolution analysis
+            Dictionary containing LoRA adapter gradient evolution analysis
         """
         gradient_data = {}
         cosine_similarities = []
@@ -221,12 +229,16 @@ class CheckpointAnalyzer:
             step = checkpoint_info["step"]
             metrics = self.load_checkpoint_metrics(step)
 
-            if metrics and "gradient_cosine_similarities" in metrics:
+            if metrics and "adapter_gradient_cosine_similarities" in metrics:
+                cosine_similarities.extend(metrics["adapter_gradient_cosine_similarities"])
+                gradient_data[step] = metrics["adapter_gradient_cosine_similarities"]
+            elif metrics and "gradient_cosine_similarities" in metrics:
+                # Fallback for backward compatibility
                 cosine_similarities.extend(metrics["gradient_cosine_similarities"])
                 gradient_data[step] = metrics["gradient_cosine_similarities"]
 
         if not cosine_similarities:
-            return {"status": "no_gradient_data"}
+            return {"status": "no_adapter_gradient_data"}
 
         # Analyze cosine similarity trends
         cosine_similarities_array = np.array(cosine_similarities)
@@ -243,11 +255,11 @@ class CheckpointAnalyzer:
 
         return analysis
 
-    def analyze_weight_evolution(self) -> Dict[str, Any]:
-        """Analyze how model weights evolve during training.
+    def analyze_adapter_weight_evolution(self) -> Dict[str, Any]:
+        """Analyze how LoRA adapter weights evolve during training.
 
         Returns:
-            Dictionary containing weight evolution analysis
+            Dictionary containing LoRA adapter weight evolution analysis
         """
         weight_data = []
 
@@ -255,21 +267,29 @@ class CheckpointAnalyzer:
             step = checkpoint_info["step"]
             metrics = self.load_checkpoint_metrics(step)
 
-            if metrics and "weight_stats_history" in metrics:
+            if metrics and "adapter_weight_stats_history" in metrics:
+                weight_data.extend(metrics["adapter_weight_stats_history"])
+            elif metrics and "weight_stats_history" in metrics:
+                # Fallback for backward compatibility
                 weight_data.extend(metrics["weight_stats_history"])
 
         if not weight_data:
-            return {"status": "no_weight_data"}
+            return {"status": "no_adapter_weight_data"}
 
         # Convert to DataFrame for analysis
         df = pd.DataFrame(weight_data)
 
+        # Handle both new and old format
+        overall_norm_key = "adapter_overall_norm" if "adapter_overall_norm" in df.columns else "overall_norm"
+        overall_mean_key = "adapter_overall_mean" if "adapter_overall_mean" in df.columns else "overall_mean"
+        overall_std_key = "adapter_overall_std" if "adapter_overall_std" in df.columns else "overall_std"
+        
         analysis = {
-            "weight_norm_trend": self._analyze_trend(np.array(df["overall_norm"])),
-            "weight_mean_trend": self._analyze_trend(np.array(df["overall_mean"])),
-            "weight_std_trend": self._analyze_trend(np.array(df["overall_std"])),
-            "weight_stability": self._assess_weight_stability(df),
-            "layer_analysis": self._analyze_layer_weights(weight_data),
+            "adapter_weight_norm_trend": self._analyze_trend(np.array(df[overall_norm_key])),
+            "adapter_weight_mean_trend": self._analyze_trend(np.array(df[overall_mean_key])),
+            "adapter_weight_std_trend": self._analyze_trend(np.array(df[overall_std_key])),
+            "adapter_weight_stability": self._assess_adapter_weight_stability(df, overall_norm_key),
+            "adapter_layer_analysis": self._analyze_adapter_layer_weights(weight_data),
         }
 
         return analysis
@@ -359,8 +379,10 @@ class CheckpointAnalyzer:
                 "checkpoint_steps": [cp["step"] for cp in self.checkpoints_info],
                 "analysis_timestamp": pd.Timestamp.now().isoformat(),
             },
-            "gradient_analysis": self.analyze_gradient_evolution(),
-            "weight_analysis": self.analyze_weight_evolution(),
+            "adapter_gradient_analysis": self.analyze_adapter_gradient_evolution(),
+            "adapter_weight_analysis": self.analyze_adapter_weight_evolution(),
+            "gradient_analysis": self.analyze_adapter_gradient_evolution(),  # Backward compatibility
+            "weight_analysis": self.analyze_adapter_weight_evolution(),  # Backward compatibility
             "training_dynamics": self.analyze_training_dynamics(),
             "overfitting_analysis": self.detect_overfitting(),
         }
@@ -387,32 +409,38 @@ class CheckpointAnalyzer:
         metadata_df.to_csv(metadata_path, index=False)
         exported_files["metadata"] = metadata_path
 
-        # Export gradient data
+        # Export LoRA adapter gradient data
         all_gradient_data = []
         for checkpoint_info in self.checkpoints_info:
             step = checkpoint_info["step"]
             metrics = self.load_checkpoint_metrics(step)
-            if metrics and "gradient_cosine_similarities" in metrics:
+            if metrics and "adapter_gradient_cosine_similarities" in metrics:
+                all_gradient_data.extend(metrics["adapter_gradient_cosine_similarities"])
+            elif metrics and "gradient_cosine_similarities" in metrics:
+                # Fallback for backward compatibility
                 all_gradient_data.extend(metrics["gradient_cosine_similarities"])
 
         if all_gradient_data:
-            gradient_path = output_dir / "gradient_cosine_similarities.npy"
+            gradient_path = output_dir / "adapter_gradient_cosine_similarities.npy"
             np.save(gradient_path, np.array(all_gradient_data))
-            exported_files["gradient_similarities"] = gradient_path
+            exported_files["adapter_gradient_similarities"] = gradient_path
 
-        # Export weight evolution data
+        # Export LoRA adapter weight evolution data
         all_weight_data = []
         for checkpoint_info in self.checkpoints_info:
             step = checkpoint_info["step"]
             metrics = self.load_checkpoint_metrics(step)
-            if metrics and "weight_stats_history" in metrics:
+            if metrics and "adapter_weight_stats_history" in metrics:
+                all_weight_data.extend(metrics["adapter_weight_stats_history"])
+            elif metrics and "weight_stats_history" in metrics:
+                # Fallback for backward compatibility
                 all_weight_data.extend(metrics["weight_stats_history"])
 
         if all_weight_data:
             weight_df = pd.DataFrame(all_weight_data)
-            weight_path = output_dir / "weight_evolution.csv"
+            weight_path = output_dir / "adapter_weight_evolution.csv"
             weight_df.to_csv(weight_path, index=False)
-            exported_files["weight_evolution"] = weight_path
+            exported_files["adapter_weight_evolution"] = weight_path
 
         logger.info(f"Exported {len(exported_files)} data files to {output_dir}")
         return exported_files
@@ -471,10 +499,10 @@ class CheckpointAnalyzer:
             "change_percentage": float((values[-1] - values[0]) / values[0] * 100) if values[0] != 0 else 0.0,
         }
 
-    def _assess_weight_stability(self, df: pd.DataFrame) -> str:
-        """Assess weight stability."""
-        norm_std = df["overall_norm"].std()
-        norm_mean = df["overall_norm"].mean()
+    def _assess_adapter_weight_stability(self, df: pd.DataFrame, norm_column: str) -> str:
+        """Assess LoRA adapter weight stability."""
+        norm_std = df[norm_column].std()
+        norm_mean = df[norm_column].mean()
 
         coefficient_of_variation = norm_std / norm_mean if norm_mean != 0 else float("inf")
 
@@ -487,14 +515,14 @@ class CheckpointAnalyzer:
         else:
             return "unstable"
 
-    def _analyze_layer_weights(self, weight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Analyze layer-wise weight evolution."""
+    def _analyze_adapter_layer_weights(self, weight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze LoRA adapter layer-wise weight evolution."""
         if not weight_data:
             return {"status": "no_data"}
 
-        # Get layer names from first entry
+        # Get LoRA adapter layer names from first entry
         first_entry = weight_data[0]
-        layer_norms = first_entry.get("layer_norms", {})
+        layer_norms = first_entry.get("adapter_layer_norms", first_entry.get("layer_norms", {}))
 
         if not layer_norms:
             return {"status": "no_layer_data"}
@@ -504,7 +532,10 @@ class CheckpointAnalyzer:
         for layer_name in layer_norms.keys():
             layer_values = []
             for entry in weight_data:
-                if "layer_norms" in entry and layer_name in entry["layer_norms"]:
+                # Check for LoRA-specific layer norms first
+                if "adapter_layer_norms" in entry and layer_name in entry["adapter_layer_norms"]:
+                    layer_values.append(entry["adapter_layer_norms"][layer_name])
+                elif "layer_norms" in entry and layer_name in entry["layer_norms"]:
                     layer_values.append(entry["layer_norms"][layer_name])
 
             if layer_values:

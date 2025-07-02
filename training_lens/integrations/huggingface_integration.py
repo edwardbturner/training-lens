@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 
 class HuggingFaceIntegration:
-    """Integration with HuggingFace Hub for model and checkpoint storage."""
+    """Integration with HuggingFace Hub for LoRA adapter and checkpoint storage."""
 
     def __init__(
         self,
@@ -125,6 +125,139 @@ class HuggingFaceIntegration:
         except Exception as e:
             logger.error(f"Failed to upload checkpoint {step}: {e}")
             raise
+            
+    def upload_lora_checkpoint(
+        self,
+        checkpoint_path: Union[str, Path],
+        step: int,
+        metadata: Optional[Dict[str, Any]] = None,
+        commit_message: Optional[str] = None,
+        upload_adapter_only: bool = True,
+    ) -> str:
+        """Upload a LoRA adapter checkpoint to HuggingFace Hub.
+
+        Args:
+            checkpoint_path: Local path to LoRA checkpoint directory
+            step: Training step number
+            metadata: Additional metadata to include
+            commit_message: Custom commit message
+            upload_adapter_only: If True, only upload LoRA adapter weights
+
+        Returns:
+            URL to the uploaded LoRA checkpoint
+        """
+        checkpoint_path = Path(checkpoint_path)
+
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"LoRA checkpoint path does not exist: {checkpoint_path}")
+
+        # Create remote path for LoRA checkpoints
+        remote_path = f"{self.checkpoint_folder}/lora-checkpoint-{step}"
+
+        # Default commit message
+        if commit_message is None:
+            commit_message = f"Upload LoRA adapter checkpoint at step {step}"
+
+        logger.info(f"Uploading LoRA checkpoint {step} to {self.repo_id}/{remote_path}")
+
+        try:
+            if upload_adapter_only:
+                # Only upload adapter-specific files
+                adapter_files = []
+                
+                # Check for adapter directory
+                adapter_dir = checkpoint_path / "adapter"
+                if adapter_dir.exists():
+                    logger.info("Uploading PEFT adapter files")
+                    upload_folder(
+                        folder_path=adapter_dir,
+                        repo_id=self.repo_id,
+                        path_in_repo=f"{remote_path}/adapter",
+                        commit_message=commit_message,
+                        token=self.token,
+                    )
+                
+                # Check for standalone LoRA weights
+                lora_weights_path = checkpoint_path / "lora_weights.pt"
+                if lora_weights_path.exists():
+                    logger.info("Uploading LoRA weights file")
+                    self.api.upload_file(
+                        path_or_fileobj=str(lora_weights_path),
+                        path_in_repo=f"{remote_path}/lora_weights.pt",
+                        repo_id=self.repo_id,
+                        token=self.token,
+                        commit_message=commit_message,
+                    )
+                
+                # Upload LoRA-specific training data
+                lora_training_data_path = checkpoint_path / "lora_training_data.pt"
+                if lora_training_data_path.exists():
+                    logger.info("Uploading LoRA training analysis data")
+                    self.api.upload_file(
+                        path_or_fileobj=str(lora_training_data_path),
+                        path_in_repo=f"{remote_path}/lora_training_data.pt",
+                        repo_id=self.repo_id,
+                        token=self.token,
+                        commit_message=f"Upload LoRA training data for step {step}",
+                    )
+                
+                # Upload optimizer state if present
+                lora_optimizer_path = checkpoint_path / "lora_optimizer.pt"
+                if lora_optimizer_path.exists():
+                    logger.info("Uploading LoRA optimizer state")
+                    self.api.upload_file(
+                        path_or_fileobj=str(lora_optimizer_path),
+                        path_in_repo=f"{remote_path}/lora_optimizer.pt",
+                        repo_id=self.repo_id,
+                        token=self.token,
+                        commit_message=f"Upload LoRA optimizer state for step {step}",
+                    )
+                    
+                # Upload metadata
+                metadata_path = checkpoint_path / "metadata.json"
+                if metadata_path.exists():
+                    self.api.upload_file(
+                        path_or_fileobj=str(metadata_path),
+                        path_in_repo=f"{remote_path}/metadata.json",
+                        repo_id=self.repo_id,
+                        token=self.token,
+                        commit_message=f"Upload LoRA checkpoint metadata for step {step}",
+                    )
+            else:
+                # Upload entire checkpoint folder
+                upload_folder(
+                    folder_path=checkpoint_path,
+                    repo_id=self.repo_id,
+                    path_in_repo=remote_path,
+                    commit_message=commit_message,
+                    token=self.token,
+                )
+
+            # Upload additional metadata if provided
+            if metadata:
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+                    import json
+                    json.dump(metadata, f, indent=2, default=str)
+                    metadata_temp_path = f.name
+
+                try:
+                    self.api.upload_file(
+                        path_or_fileobj=metadata_temp_path,
+                        path_in_repo=f"{remote_path}/training_lens_lora_metadata.json",
+                        repo_id=self.repo_id,
+                        token=self.token,
+                        commit_message=f"Add LoRA training lens metadata for step {step}",
+                    )
+                finally:
+                    os.unlink(metadata_temp_path)
+
+            checkpoint_url = f"https://huggingface.co/{self.repo_id}/tree/main/{remote_path}"
+            logger.info(f"Successfully uploaded LoRA checkpoint: {checkpoint_url}")
+            return checkpoint_url
+
+        except Exception as e:
+            logger.error(f"Failed to upload LoRA checkpoint {step}: {e}")
+            raise
 
     def download_checkpoint(
         self,
@@ -175,8 +308,8 @@ class HuggingFaceIntegration:
         try:
             repo_files = self.api.list_repo_files(self.repo_id, token=self.token)
 
-            # Filter for checkpoint directories
-            checkpoint_files = [f for f in repo_files if f.startswith(f"{self.checkpoint_folder}/checkpoint-")]
+            # Filter for checkpoint directories (both regular and LoRA)
+            checkpoint_files = [f for f in repo_files if f.startswith(f"{self.checkpoint_folder}/checkpoint-") or f.startswith(f"{self.checkpoint_folder}/lora-checkpoint-")]
 
             # Extract checkpoint steps
             checkpoints = []
@@ -191,22 +324,39 @@ class HuggingFaceIntegration:
 
             for checkpoint_dir in sorted(checkpoint_dirs):
                 try:
-                    # Extract step number
-                    step_str = checkpoint_dir.split("checkpoint-")[-1]
+                    # Extract step number (handle both regular and LoRA checkpoints)
+                    if "lora-checkpoint-" in checkpoint_dir:
+                        step_str = checkpoint_dir.split("lora-checkpoint-")[-1]
+                        checkpoint_type = "lora"
+                    else:
+                        step_str = checkpoint_dir.split("checkpoint-")[-1]
+                        checkpoint_type = "regular"
                     step = int(step_str)
 
                     checkpoint_info = {
                         "step": step,
                         "remote_path": checkpoint_dir,
                         "url": f"https://huggingface.co/{self.repo_id}/tree/main/{checkpoint_dir}",
+                        "type": checkpoint_type,
                     }
 
                     # Try to get metadata if available
                     try:
                         metadata_path = f"{checkpoint_dir}/training_lens_metadata.json"
-                        if metadata_path in repo_files:
-                            # Note: We could download and parse metadata here if needed
+                        lora_metadata_path = f"{checkpoint_dir}/training_lens_lora_metadata.json"
+                        
+                        if metadata_path in repo_files or lora_metadata_path in repo_files:
                             checkpoint_info["has_metadata"] = True
+                            
+                        # Check for LoRA-specific files
+                        if checkpoint_type == "lora":
+                            has_adapter = any(f.startswith(f"{checkpoint_dir}/adapter/") for f in repo_files)
+                            has_lora_weights = f"{checkpoint_dir}/lora_weights.pt" in repo_files
+                            has_lora_training_data = f"{checkpoint_dir}/lora_training_data.pt" in repo_files
+                            
+                            checkpoint_info["has_adapter"] = has_adapter
+                            checkpoint_info["has_lora_weights"] = has_lora_weights
+                            checkpoint_info["has_training_data"] = has_lora_training_data
                     except Exception:
                         pass
 
