@@ -15,6 +15,7 @@ from .logging import get_logger
 
 try:
     from huggingface_hub import HfApi, create_repo, upload_folder, upload_file
+
     HF_HUB_AVAILABLE = True
 except ImportError:
     HF_HUB_AVAILABLE = False
@@ -26,11 +27,13 @@ logger = get_logger(__name__)
 
 class LoRAPublishingError(Exception):
     """Base exception for LoRA publishing operations."""
+
     pass
 
 
 class LoRAUploadError(LoRAPublishingError):
     """Exception raised when LoRA upload fails."""
+
     pass
 
 
@@ -238,6 +241,7 @@ class LoRAPublisher:
 
                                 # Copy file
                                 import shutil
+
                                 shutil.copy2(file_path, target_path)
                                 files_copied += 1
 
@@ -302,6 +306,7 @@ class LoRAPublisher:
                 # Copy model files
                 if model_path.is_dir():
                     import shutil
+
                     shutil.copytree(model_path, temp_path / "model", dirs_exist_ok=True)
                 else:
                     shutil.copy2(model_path, temp_path / "model")
@@ -314,11 +319,7 @@ class LoRAPublisher:
                     **model_metadata,
                 }
 
-                safe_save(
-                    metadata_with_info,
-                    temp_path / "training_metadata.json",
-                    format="json"
-                )
+                safe_save(metadata_with_info, temp_path / "training_metadata.json", format="json")
 
                 # Create README if provided
                 if readme_content:
@@ -376,6 +377,7 @@ class LoRAPublisher:
 
                 # Apply filtering and copy files
                 import fnmatch
+
                 files_copied = 0
 
                 for file_path in artifacts_dir.rglob("*"):
@@ -400,6 +402,7 @@ class LoRAPublisher:
                     ensure_dir(target_path.parent)
 
                     import shutil
+
                     shutil.copy2(file_path, target_path)
                     files_copied += 1
 
@@ -426,6 +429,7 @@ class LoRAPublisher:
 
 
 # Convenience functions for common upload scenarios
+
 
 def upload_lora_checkpoint(
     checkpoint_path: Union[str, Path],
@@ -481,6 +485,7 @@ def upload_lora_collection(
     # Create filter functions
     checkpoint_filter = None
     if min_checkpoint_step is not None:
+
         def checkpoint_filter_fn(checkpoint_dir: Path) -> bool:
             try:
                 # Extract step number from directory name (e.g., "checkpoint-1500" -> 1500)
@@ -491,12 +496,15 @@ def upload_lora_collection(
                 return True
             except (ValueError, IndexError):
                 return True
+
         checkpoint_filter = checkpoint_filter_fn
 
     file_filter = None
     if safetensors_only:
+
         def file_filter_fn(f):
             return f.suffix == ".safetensors"
+
         file_filter = file_filter_fn
 
     return publisher.upload_checkpoint_collection(

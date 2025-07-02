@@ -15,10 +15,14 @@ from .training import TrainingWrapper, TrainingConfig, CheckpointManager, Metric
 
 # Analysis components
 from .analysis import CheckpointAnalyzer, StandardReports
+
 try:
     from .analysis import (
-        GradientAnalyzer, WeightAnalyzer, ActivationAnalyzer,
-        ActivationExtractor, ActivationVisualizer
+        GradientAnalyzer,
+        WeightAnalyzer,
+        ActivationAnalyzer,
+        ActivationExtractor,
+        ActivationVisualizer,
     )
     from .analysis.adapters.lora_tracker import LoRAActivationTracker, LoRAParameterAnalyzer
 except ImportError:
@@ -49,7 +53,6 @@ __all__ = [
     "TrainingConfig",
     "CheckpointManager",
     "MetricsCollector",
-
     # Analysis
     "CheckpointAnalyzer",
     "StandardReports",
@@ -58,13 +61,11 @@ __all__ = [
     "ActivationAnalyzer",
     "ActivationExtractor",
     "ActivationVisualizer",
-
     # LoRA-specific components
     "LoRAActivationTracker",
     "LoRAParameterAnalyzer",
     "LoRATrainingWrapper",
     "LoRACheckpointAnalyzer",
-
     # Integrations
     "HuggingFaceIntegration",
     "WandBIntegration",

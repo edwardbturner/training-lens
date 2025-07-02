@@ -38,7 +38,7 @@ def get_lora_state_dict(model: nn.Module) -> Dict[str, torch.Tensor]:
 
     for name, param in model.named_parameters():
         # Check for LoRA/adapter parameter patterns
-        if any(pattern in name.lower() for pattern in ['lora_', 'adapter']):
+        if any(pattern in name.lower() for pattern in ["lora_", "adapter"]):
             lora_state_dict[name] = param.detach().cpu()
 
     return lora_state_dict

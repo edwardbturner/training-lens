@@ -364,7 +364,9 @@ class LossFunctionAnalyzer:
             overfitting_risk = (
                 "high"
                 if final_gap > 0.5 or len(overfitting_signals) > 3
-                else "medium" if final_gap > 0.2 or len(overfitting_signals) > 1 else "low"
+                else "medium"
+                if final_gap > 0.2 or len(overfitting_signals) > 1
+                else "low"
             )
 
             return {
@@ -430,7 +432,11 @@ class LossFunctionAnalyzer:
                 "smoothness_level": (
                     "very_smooth"
                     if smoothness_score > 0.8
-                    else "smooth" if smoothness_score > 0.6 else "moderate" if smoothness_score > 0.4 else "noisy"
+                    else "smooth"
+                    if smoothness_score > 0.6
+                    else "moderate"
+                    if smoothness_score > 0.4
+                    else "noisy"
                 ),
             }
 
@@ -527,7 +533,9 @@ class LossFunctionAnalyzer:
                 else (
                     "slow_convergence"
                     if abs(recent_trend) < 1e-3
-                    else "still_improving" if recent_trend < -1e-3 else "diverging"
+                    else "still_improving"
+                    if recent_trend < -1e-3
+                    else "diverging"
                 )
             )
 

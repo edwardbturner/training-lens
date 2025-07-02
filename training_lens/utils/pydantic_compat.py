@@ -14,23 +14,26 @@ try:
     # Create v1-compatible decorators for v2
     def validator(*fields, **kwargs):
         """Compatibility wrapper for Pydantic v2 field_validator."""
+
         def decorator(func):
             # Extract common kwargs
-            mode = kwargs.get('mode', 'after')
-            check_fields = kwargs.get('check_fields', True)
+            mode = kwargs.get("mode", "after")
+            check_fields = kwargs.get("check_fields", True)
 
             # For v2, we need to apply field_validator to each field
             if fields:
                 return field_validator(*fields, mode=mode, check_fields=check_fields)(func)
             return func
+
         return decorator
 
     def root_validator(pre: bool = False, **kwargs):
         """Compatibility wrapper for Pydantic v2 model_validator."""
-        mode = 'before' if pre else 'after'
+        mode = "before" if pre else "after"
 
         def decorator(func):
             return model_validator(mode=mode)(func)
+
         return decorator
 
     # Use v2 exports
@@ -69,11 +72,12 @@ except ImportError:
 
             def dict(self):
                 """Get dictionary representation."""
-                return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
+                return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
             def json(self):
                 """Get JSON representation."""
                 import json
+
                 return json.dumps(self.dict())
 
             @classmethod
@@ -85,6 +89,7 @@ except ImportError:
             def parse_file(cls, path):
                 """Parse file."""
                 import json
+
                 with open(path) as f:
                     return cls(**json.load(f))
 
@@ -94,14 +99,18 @@ except ImportError:
 
         def validator(*fields, **kwargs):
             """Dummy validator decorator."""
+
             def decorator(func):
                 return func
+
             return decorator
 
         def root_validator(**kwargs):
             """Dummy root_validator decorator."""
+
             def decorator(func):
                 return func
+
             return decorator
 
 
@@ -121,11 +130,13 @@ def create_model_config(**kwargs) -> Type:
     if PYDANTIC_V2:
         # For Pydantic v2, we use ConfigDict
         from pydantic import ConfigDict
+
         return ConfigDict(**kwargs)
     elif PYDANTIC_VERSION == 1:
         # For Pydantic v1, we create a Config class
         class Config:
             pass
+
         for key, value in kwargs.items():
             setattr(Config, key, value)
         return Config
@@ -133,18 +144,19 @@ def create_model_config(**kwargs) -> Type:
         # No Pydantic, return empty class
         class Config:
             pass
+
         return Config
 
 
 # Export all compatibility items
 __all__ = [
-    'BaseModel',
-    'Field',
-    'validator',
-    'root_validator',
-    'get_pydantic_version',
-    'is_pydantic_available',
-    'create_model_config',
-    'PYDANTIC_V2',
-    'PYDANTIC_VERSION',
+    "BaseModel",
+    "Field",
+    "validator",
+    "root_validator",
+    "get_pydantic_version",
+    "is_pydantic_available",
+    "create_model_config",
+    "PYDANTIC_V2",
+    "PYDANTIC_VERSION",
 ]

@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 
 class CollectorRegistryError(Exception):
     """Exception raised for collector registry errors."""
+
     pass
 
 
@@ -53,9 +54,7 @@ class CollectorRegistry:
         """
         # Validate collector class
         if not issubclass(collector_class, DataCollector):
-            raise CollectorRegistryError(
-                f"Collector class {collector_class} must inherit from DataCollector"
-            )
+            raise CollectorRegistryError(f"Collector class {collector_class} must inherit from DataCollector")
 
         # Check if already registered
         if data_type in self._collectors:
@@ -239,10 +238,7 @@ class CollectorRegistry:
 
                     # Look for DataCollector subclasses
                     for name, obj in inspect.getmembers(module):
-                        if (inspect.isclass(obj)
-                            and issubclass(obj, DataCollector)
-                                and obj != DataCollector):
-
+                        if inspect.isclass(obj) and issubclass(obj, DataCollector) and obj != DataCollector:
                             # Get the data type from the collector
                             try:
                                 instance = obj()

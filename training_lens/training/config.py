@@ -352,6 +352,7 @@ class TrainingConfig(BaseModel):  # type: ignore[valid-type]
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
         import json
+
         with open(file_path, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
 
@@ -364,6 +365,7 @@ class TrainingConfig(BaseModel):  # type: ignore[valid-type]
             raise FileNotFoundError(f"Configuration file not found: {file_path}")
 
         import json
+
         with open(file_path, "r") as f:
             data = json.load(f)
 

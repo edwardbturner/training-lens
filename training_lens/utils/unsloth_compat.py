@@ -8,6 +8,7 @@ from transformers import AutoModel, AutoTokenizer
 
 try:
     from unsloth import FastLanguageModel, is_bfloat16_supported
+
     UNSLOTH_AVAILABLE = True
 except ImportError:
     UNSLOTH_AVAILABLE = False
@@ -20,8 +21,10 @@ except ImportError:
             return torch.cuda.get_device_capability()[0] >= 8  # Ampere or newer
         return False
 
+
 try:
     from peft import LoraConfig, TaskType, get_peft_model
+
     PEFT_AVAILABLE = True
 except ImportError:
     PEFT_AVAILABLE = False
@@ -106,14 +109,20 @@ def get_peft_model_wrapper(
     Returns:
         Model with LoRA adapters
     """
-    if UNSLOTH_AVAILABLE and hasattr(FastLanguageModel, 'get_peft_model'):
+    if UNSLOTH_AVAILABLE and hasattr(FastLanguageModel, "get_peft_model"):
         # Use Unsloth's optimized PEFT
         return FastLanguageModel.get_peft_model(
             model,
             r=r,
-            target_modules=target_modules or [
-                "q_proj", "k_proj", "v_proj", "o_proj",
-                "gate_proj", "up_proj", "down_proj",
+            target_modules=target_modules
+            or [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
             ],
             lora_alpha=lora_alpha,
             lora_dropout=lora_dropout,
@@ -139,7 +148,7 @@ def get_peft_model_wrapper(
         )
 
         # Enable gradient checkpointing if requested
-        if use_gradient_checkpointing and hasattr(model, 'gradient_checkpointing_enable'):
+        if use_gradient_checkpointing and hasattr(model, "gradient_checkpointing_enable"):
             model.gradient_checkpointing_enable()
 
         return get_peft_model(model, peft_config)

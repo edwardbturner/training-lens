@@ -16,25 +16,29 @@ if original_module_path.exists():
     spec.loader.exec_module(original_module)
 
     # Extract the specialized classes
-    LoRAActivationTracker = getattr(original_module, 'LoRAActivationTracker', None)
-    LoRAParameterAnalyzer = getattr(original_module, 'LoRAParameterAnalyzer', None)
+    LoRAActivationTracker = getattr(original_module, "LoRAActivationTracker", None)
+    LoRAParameterAnalyzer = getattr(original_module, "LoRAParameterAnalyzer", None)
 else:
     LoRAActivationTracker = None
     LoRAParameterAnalyzer = None
 
 # Fallback classes if not found
 if LoRAActivationTracker is None:
+
     class LoRAActivationTracker:
         """Fallback LoRAActivationTracker class."""
 
         def __init__(self, *args, **kwargs):
             raise NotImplementedError("LoRAActivationTracker not available")
 
+
 if LoRAParameterAnalyzer is None:
+
     class LoRAParameterAnalyzer:
         """Fallback LoRAParameterAnalyzer class."""
 
         def __init__(self, *args, **kwargs):
             raise NotImplementedError("LoRAParameterAnalyzer not available")
+
 
 __all__ = ["LoRAActivationTracker", "LoRAParameterAnalyzer"]

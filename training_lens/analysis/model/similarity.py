@@ -245,7 +245,6 @@ class SimilarityAnalyzer(DataAnalyzer):
                 and "statistics" in point1
                 and "statistics" in point2
             ):
-
                 stats1 = point1["statistics"]
                 stats2 = point2["statistics"]
 

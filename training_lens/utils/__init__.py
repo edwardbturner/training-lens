@@ -9,7 +9,6 @@ __all__ = [
     "setup_logging",
     "get_logger",
     "TrainingLogger",
-
     # General utilities
     "get_device",
     "format_size",

@@ -28,8 +28,10 @@ except ImportError:
 # Optional integration component
 try:
     from .integration import (
-        IntegrationManager, TrainingLensFramework,
-        create_lora_focused_framework, create_full_spectrum_framework
+        IntegrationManager,
+        TrainingLensFramework,
+        create_lora_focused_framework,
+        create_full_spectrum_framework,
     )
 except ImportError:
     IntegrationManager = None
@@ -46,13 +48,11 @@ __all__ = [
     "AnalysisResult",
     "CollectorRegistry",
     "AnalyzerRegistry",
-
     # Collector registry functions
     "get_registry",
     "register_collector",
     "get_collector",
     "get_all_collectors",
-
     # Integration management
     "IntegrationManager",
     "TrainingLensFramework",

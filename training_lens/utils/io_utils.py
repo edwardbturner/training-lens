@@ -12,7 +12,7 @@ def save_json(data: Dict[str, Any], filepath: Union[str, Path]) -> None:
     filepath = Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(filepath, 'w') as f:
+    with open(filepath, "w") as f:
         json.dump(data, f, indent=2, default=str)
 
 
@@ -23,7 +23,7 @@ def load_json(filepath: Union[str, Path]) -> Dict[str, Any]:
     if not filepath.exists():
         raise FileNotFoundError(f"File not found: {filepath}")
 
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         return json.load(f)
 
 
@@ -40,7 +40,7 @@ def safe_torch_save(obj: Any, filepath: Union[str, Path]) -> None:
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
     # Save to temporary file first
-    temp_path = filepath.with_suffix('.tmp')
+    temp_path = filepath.with_suffix(".tmp")
     torch.save(obj, temp_path)
 
     # Move to final location
@@ -54,4 +54,4 @@ def safe_torch_load(filepath: Union[str, Path]) -> Any:
     if not filepath.exists():
         raise FileNotFoundError(f"File not found: {filepath}")
 
-    return torch.load(filepath, map_location='cpu', weights_only=False)
+    return torch.load(filepath, map_location="cpu", weights_only=False)

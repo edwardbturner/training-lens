@@ -21,7 +21,6 @@ __all__ = [
     "AdapterWeightsCollector",
     "AdapterGradientsCollector",
     "LoRAActivationsCollector",
-
     # General collectors
     "ActivationsCollector",
 ]

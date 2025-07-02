@@ -17,6 +17,7 @@ from ...utils.logging import get_logger
 
 try:
     import transformers  # noqa: F401
+
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
@@ -80,10 +81,7 @@ class CLIActivationAnalyzer:
         available_checkpoints = self._find_checkpoints(checkpoint_steps)
 
         if not available_checkpoints:
-            return {
-                "status": "no_checkpoints",
-                "message": "No valid checkpoints found"
-            }
+            return {"status": "no_checkpoints", "message": "No valid checkpoints found"}
 
         # Extract activations from each checkpoint
         for checkpoint_step in available_checkpoints:
@@ -101,10 +99,7 @@ class CLIActivationAnalyzer:
                 self.activation_data[checkpoint_step] = checkpoint_activations
 
         if not self.activation_data:
-            return {
-                "status": "no_activations",
-                "message": "No activations could be extracted"
-            }
+            return {"status": "no_activations", "message": "No activations could be extracted"}
 
         # Analyze evolution patterns
         evolution_analysis = self._analyze_evolution_patterns()
@@ -117,7 +112,7 @@ class CLIActivationAnalyzer:
             "summary": {
                 "total_checkpoints": len(self.activation_data),
                 "total_activation_points": len(next(iter(self.activation_data.values()))),
-            }
+            },
         }
 
     def compute_activation_similarities(
@@ -156,9 +151,7 @@ class CLIActivationAnalyzer:
             for act_name in reference_activations.keys():
                 if act_name in step_activations:
                     similarity = self._compute_similarity(
-                        reference_activations[act_name],
-                        step_activations[act_name],
-                        metric=similarity_metric
+                        reference_activations[act_name], step_activations[act_name], metric=similarity_metric
                     )
                     step_similarities[act_name] = similarity
 
@@ -227,10 +220,10 @@ class CLIActivationAnalyzer:
                     if isinstance(tensor, torch.Tensor):
                         json_data[name] = tensor.cpu().numpy().tolist()
                     else:
-                        json_data[name] = tensor.tolist() if hasattr(tensor, 'tolist') else tensor
+                        json_data[name] = tensor.tolist() if hasattr(tensor, "tolist") else tensor
 
                 file_path = output_dir / f"activations_step_{step}.json"
-                with open(file_path, 'w') as f:
+                with open(file_path, "w") as f:
                     json.dump(json_data, f, indent=2)
 
             exported_files[step] = str(file_path)
@@ -253,9 +246,9 @@ class CLIActivationAnalyzer:
 
         # Look for checkpoint directories (e.g., checkpoint-100, checkpoint-500)
         for item in self.checkpoint_dir.iterdir():
-            if item.is_dir() and item.name.startswith('checkpoint-'):
+            if item.is_dir() and item.name.startswith("checkpoint-"):
                 try:
-                    step = int(item.name.split('-')[1])
+                    step = int(item.name.split("-")[1])
                     if checkpoint_steps is None or step in checkpoint_steps:
                         available_steps.append(step)
                 except (ValueError, IndexError):
@@ -272,7 +265,7 @@ class CLIActivationAnalyzer:
         # If still no steps, try to find any .pt or .bin files
         if not available_steps:
             for item in self.checkpoint_dir.iterdir():
-                if item.suffix in ['.pt', '.bin', '.safetensors']:
+                if item.suffix in [".pt", ".bin", ".safetensors"]:
                     # Use a default step number
                     available_steps.append(0)
                     break
@@ -369,26 +362,19 @@ class CLIActivationAnalyzer:
                     "magnitudes": magnitudes,
                     "trend": trend,
                     "stability": min(stability, 1.0),  # Cap at 1.0
-                    "magnitude_change": (magnitudes[-1] - magnitudes[0]) / magnitudes[0]
+                    "magnitude_change": (magnitudes[-1] - magnitudes[0]) / magnitudes[0],
                 }
 
         return patterns
 
-    def _compute_similarity(
-        self,
-        tensor1: torch.Tensor,
-        tensor2: torch.Tensor,
-        metric: str = "cosine"
-    ) -> float:
+    def _compute_similarity(self, tensor1: torch.Tensor, tensor2: torch.Tensor, metric: str = "cosine") -> float:
         """Compute similarity between two activation tensors."""
         # Flatten tensors for similarity computation
         flat1 = tensor1.view(-1).float()
         flat2 = tensor2.view(-1).float()
 
         if metric == "cosine":
-            similarity = torch.nn.functional.cosine_similarity(
-                flat1.unsqueeze(0), flat2.unsqueeze(0)
-            ).item()
+            similarity = torch.nn.functional.cosine_similarity(flat1.unsqueeze(0), flat2.unsqueeze(0)).item()
         elif metric == "l2":
             # Convert L2 distance to similarity (higher is more similar)
             distance = torch.norm(flat1 - flat2).item()
@@ -397,14 +383,10 @@ class CLIActivationAnalyzer:
             # Simplified KL divergence (requires normalization)
             prob1 = torch.softmax(flat1, dim=0)
             prob2 = torch.softmax(flat2, dim=0)
-            kl_div = torch.nn.functional.kl_div(
-                prob1.log(), prob2, reduction='sum'
-            ).item()
+            kl_div = torch.nn.functional.kl_div(prob1.log(), prob2, reduction="sum").item()
             similarity = 1.0 / (1.0 + kl_div)
         else:
             logger.warning(f"Unknown similarity metric: {metric}, using cosine")
-            similarity = torch.nn.functional.cosine_similarity(
-                flat1.unsqueeze(0), flat2.unsqueeze(0)
-            ).item()
+            similarity = torch.nn.functional.cosine_similarity(flat1.unsqueeze(0), flat2.unsqueeze(0)).item()
 
         return similarity

@@ -82,7 +82,6 @@ class ActivationAnalyzer(DataAnalyzer):
         for step in steps:
             step_data = activation_data[step]
             if isinstance(step_data, dict) and "activations" in step_data and point_name in step_data["activations"]:
-
                 point_data = step_data["activations"][point_name]
                 stats = point_data.get("statistics", {})
 
@@ -160,7 +159,6 @@ class ActivationAnalyzer(DataAnalyzer):
             and isinstance(last_data, dict)
             and "activations" in last_data
         ):
-
             for point_name in first_data["activations"].keys():
                 if point_name in last_data["activations"]:
                     first_stats = first_data["activations"][point_name].get("statistics", {})

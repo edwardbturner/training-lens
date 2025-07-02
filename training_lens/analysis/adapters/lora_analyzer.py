@@ -26,12 +26,7 @@ class LoRAAnalyzer(DataAnalyzer):
         # Can analyze with adapter weights, optionally enhanced with gradients and activations
         return DataType.ADAPTER_WEIGHTS in available_data
 
-    def analyze(
-        self,
-        data: Dict[DataType, Any],
-        output_dir: Optional[Path] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
+    def analyze(self, data: Dict[DataType, Any], output_dir: Optional[Path] = None, **kwargs) -> Dict[str, Any]:
         """Perform comprehensive LoRA analysis.
 
         Args:
@@ -67,8 +62,16 @@ class LoRAAnalyzer(DataAnalyzer):
             analysis_results["activation_analysis"] = self._analyze_lora_activations(data)
 
         # Cross-analysis if multiple data types available
-        if len([dt for dt in [DataType.ADAPTER_WEIGHTS, DataType.ADAPTER_GRADIENTS, DataType.LORA_ACTIVATIONS]
-                if dt in data]) > 1:
+        if (
+            len(
+                [
+                    dt
+                    for dt in [DataType.ADAPTER_WEIGHTS, DataType.ADAPTER_GRADIENTS, DataType.LORA_ACTIVATIONS]
+                    if dt in data
+                ]
+            )
+            > 1
+        ):
             analysis_results["cross_analysis"] = self._perform_cross_analysis(data)
 
         # Save detailed results if output directory provided
@@ -95,8 +98,8 @@ class LoRAAnalyzer(DataAnalyzer):
         # Analyze each adapter module
         all_module_names = set()
         for step_data in weight_data.values():
-            if isinstance(step_data, dict) and 'adapter_weights' in step_data:
-                all_module_names.update(step_data['adapter_weights'].keys())
+            if isinstance(step_data, dict) and "adapter_weights" in step_data:
+                all_module_names.update(step_data["adapter_weights"].keys())
 
         for module_name in all_module_names:
             module_analysis = self._analyze_single_adapter_module(weight_data, module_name)
@@ -107,11 +110,7 @@ class LoRAAnalyzer(DataAnalyzer):
 
         return analysis
 
-    def _analyze_single_adapter_module(
-        self,
-        weight_data: Dict[int, Any],
-        module_name: str
-    ) -> Dict[str, Any]:
+    def _analyze_single_adapter_module(self, weight_data: Dict[int, Any], module_name: str) -> Dict[str, Any]:
         """Analyze evolution of a single LoRA adapter module."""
         steps = sorted(weight_data.keys())
 
@@ -122,17 +121,18 @@ class LoRAAnalyzer(DataAnalyzer):
 
         for step in steps:
             step_data = weight_data[step]
-            if (isinstance(step_data, dict)
-                and 'adapter_weights' in step_data
-                    and module_name in step_data['adapter_weights']):
+            if (
+                isinstance(step_data, dict)
+                and "adapter_weights" in step_data
+                and module_name in step_data["adapter_weights"]
+            ):
+                module_data = step_data["adapter_weights"][module_name]
+                stats = module_data.get("statistics", {})
 
-                module_data = step_data['adapter_weights'][module_name]
-                stats = module_data.get('statistics', {})
-
-                a_norms.append(stats.get('A_norm', 0))
-                b_norms.append(stats.get('B_norm', 0))
-                effective_norms.append(stats.get('effective_norm', 0))
-                ranks.append(module_data.get('rank', 0))
+                a_norms.append(stats.get("A_norm", 0))
+                b_norms.append(stats.get("B_norm", 0))
+                effective_norms.append(stats.get("effective_norm", 0))
+                ranks.append(module_data.get("rank", 0))
 
         if not a_norms:
             return {"status": "no_data"}
@@ -155,8 +155,7 @@ class LoRAAnalyzer(DataAnalyzer):
                 "trend": self._compute_trend(np.array(effective_norms)),
                 "stability": np.std(effective_norms) if len(effective_norms) > 1 else 0,
                 "growth_rate": (
-                    (effective_norms[-1] - effective_norms[0]) / len(effective_norms)
-                    if len(effective_norms) > 1 else 0
+                    (effective_norms[-1] - effective_norms[0]) / len(effective_norms) if len(effective_norms) > 1 else 0
                 ),
             },
             "rank_info": {
@@ -202,19 +201,16 @@ class LoRAAnalyzer(DataAnalyzer):
         latest_step = max(weight_data.keys())
         latest_data = weight_data[latest_step]
 
-        if isinstance(latest_data, dict) and 'adapter_weights' in latest_data:
-            for module_name, module_data in latest_data['adapter_weights'].items():
-                if 'A_weight' in module_data and 'B_weight' in module_data:
-                    utilization = self._compute_rank_utilization(
-                        module_data['A_weight'],
-                        module_data['B_weight']
-                    )
+        if isinstance(latest_data, dict) and "adapter_weights" in latest_data:
+            for module_name, module_data in latest_data["adapter_weights"].items():
+                if "A_weight" in module_data and "B_weight" in module_data:
+                    utilization = self._compute_rank_utilization(module_data["A_weight"], module_data["B_weight"])
                     utilization_analysis[module_name] = utilization
 
         # Compute overall statistics
         if utilization_analysis:
-            effective_ranks = [u['effective_rank'] for u in utilization_analysis.values()]
-            utilization_ratios = [u['utilization_ratio'] for u in utilization_analysis.values()]
+            effective_ranks = [u["effective_rank"] for u in utilization_analysis.values()]
+            utilization_ratios = [u["utilization_ratio"] for u in utilization_analysis.values()]
 
             utilization_analysis["global_statistics"] = {
                 "mean_effective_rank": np.mean(effective_ranks),
@@ -241,9 +237,9 @@ class LoRAAnalyzer(DataAnalyzer):
         effective_rank = np.exp(-np.sum(normalized_sv * np.log(normalized_sv + 1e-10)))
 
         # Stable rank
-        frobenius_norm = torch.norm(effective_matrix, 'fro').item()
+        frobenius_norm = torch.norm(effective_matrix, "fro").item()
         spectral_norm = torch.norm(effective_matrix, 2).item()
-        stable_rank = (frobenius_norm ** 2) / (spectral_norm ** 2 + 1e-8)
+        stable_rank = (frobenius_norm**2) / (spectral_norm**2 + 1e-8)
 
         return {
             "nominal_rank": nominal_rank,
@@ -272,14 +268,14 @@ class LoRAAnalyzer(DataAnalyzer):
 
         for step in steps:
             step_data = weight_data[step]
-            if isinstance(step_data, dict) and 'adapter_weights' in step_data:
-                total_adapters.append(step_data.get('total_adapters', 0))
+            if isinstance(step_data, dict) and "adapter_weights" in step_data:
+                total_adapters.append(step_data.get("total_adapters", 0))
 
                 # Compute total effective norm
                 effective_norms = []
-                for module_data in step_data['adapter_weights'].values():
-                    stats = module_data.get('statistics', {})
-                    effective_norms.append(stats.get('effective_norm', 0))
+                for module_data in step_data["adapter_weights"].values():
+                    stats = module_data.get("statistics", {})
+                    effective_norms.append(stats.get("effective_norm", 0))
 
                 total_effective_norms.append(sum(effective_norms))
 
@@ -292,8 +288,9 @@ class LoRAAnalyzer(DataAnalyzer):
             "total_norm_evolution": {
                 "values": total_effective_norms,
                 "trend": self._compute_trend(np.array(total_effective_norms)),
-                "growth_rate": ((total_effective_norms[-1] - total_effective_norms[0])
-                                / len(total_effective_norms)) if len(total_effective_norms) > 1 else 0,
+                "growth_rate": ((total_effective_norms[-1] - total_effective_norms[0]) / len(total_effective_norms))
+                if len(total_effective_norms) > 1
+                else 0,
             },
             "training_phases": self._identify_training_phases(total_effective_norms),
         }
@@ -320,32 +317,38 @@ class LoRAAnalyzer(DataAnalyzer):
 
         for i, rate in enumerate(growth_rates):
             if abs(rate) < threshold and current_phase != "stabilization":
-                phases.append({
-                    "phase": current_phase,
-                    "start_step": phase_start,
-                    "end_step": i,
-                    "duration": i - phase_start,
-                })
-                current_phase = "stabilization"
-                phase_start = i
-            elif abs(rate) >= threshold and current_phase != "adaptation":
-                if current_phase != "initialization":
-                    phases.append({
+                phases.append(
+                    {
                         "phase": current_phase,
                         "start_step": phase_start,
                         "end_step": i,
                         "duration": i - phase_start,
-                    })
+                    }
+                )
+                current_phase = "stabilization"
+                phase_start = i
+            elif abs(rate) >= threshold and current_phase != "adaptation":
+                if current_phase != "initialization":
+                    phases.append(
+                        {
+                            "phase": current_phase,
+                            "start_step": phase_start,
+                            "end_step": i,
+                            "duration": i - phase_start,
+                        }
+                    )
                 current_phase = "adaptation"
                 phase_start = i
 
         # Add final phase
-        phases.append({
-            "phase": current_phase,
-            "start_step": phase_start,
-            "end_step": len(growth_rates),
-            "duration": len(growth_rates) - phase_start,
-        })
+        phases.append(
+            {
+                "phase": current_phase,
+                "start_step": phase_start,
+                "end_step": len(growth_rates),
+                "duration": len(growth_rates) - phase_start,
+            }
+        )
 
         return {
             "phases": phases,
@@ -384,19 +387,15 @@ class LoRAAnalyzer(DataAnalyzer):
         cross_analysis = {}
 
         # Weight-Gradient correlation
-        if (DataType.ADAPTER_WEIGHTS in data
-                and DataType.ADAPTER_GRADIENTS in data):
+        if DataType.ADAPTER_WEIGHTS in data and DataType.ADAPTER_GRADIENTS in data:
             cross_analysis["weight_gradient_correlation"] = self._analyze_weight_gradient_correlation(
-                data[DataType.ADAPTER_WEIGHTS],
-                data[DataType.ADAPTER_GRADIENTS]
+                data[DataType.ADAPTER_WEIGHTS], data[DataType.ADAPTER_GRADIENTS]
             )
 
         # Weight-Activation relationship
-        if (DataType.ADAPTER_WEIGHTS in data
-                and DataType.LORA_ACTIVATIONS in data):
+        if DataType.ADAPTER_WEIGHTS in data and DataType.LORA_ACTIVATIONS in data:
             cross_analysis["weight_activation_relationship"] = self._analyze_weight_activation_relationship(
-                data[DataType.ADAPTER_WEIGHTS],
-                data[DataType.LORA_ACTIVATIONS]
+                data[DataType.ADAPTER_WEIGHTS], data[DataType.LORA_ACTIVATIONS]
             )
 
         return cross_analysis
@@ -434,7 +433,7 @@ class LoRAAnalyzer(DataAnalyzer):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Save main results
-        with open(output_dir / "lora_analysis.json", 'w') as f:
+        with open(output_dir / "lora_analysis.json", "w") as f:
             json.dump(results, f, indent=2, default=str)
 
         # Save adapter-specific data
@@ -448,7 +447,7 @@ class LoRAAnalyzer(DataAnalyzer):
                 if "effective_matrix_evolution" in module_data:
                     norms = module_data["effective_matrix_evolution"]["norms"]
 
-                    with open(output_dir / f"{safe_module_name}_norm_evolution.csv", 'w') as f:
+                    with open(output_dir / f"{safe_module_name}_norm_evolution.csv", "w") as f:
                         f.write("step,effective_norm\n")
                         for i, norm in enumerate(norms):
                             f.write(f"{i},{norm}\n")
@@ -516,7 +515,7 @@ class LoRAAnalyzer(DataAnalyzer):
                         "singular_values": S.tolist(),
                         "effective_rank": effective_rank,
                         "rank_utilization": rank_utilization,
-                        "condition_number": (S[0] / S[-1]).item() if S[-1] > 1e-10 else float('inf'),
+                        "condition_number": (S[0] / S[-1]).item() if S[-1] > 1e-10 else float("inf"),
                     }
                 except Exception as e:
                     self.logger.warning(f"SVD analysis failed for {layer_name}: {e}")

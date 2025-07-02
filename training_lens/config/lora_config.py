@@ -247,7 +247,7 @@ if PYDANTIC_AVAILABLE:
                 "alpha": self.alpha,
                 "dropout": self.dropout,
                 "target_modules": self.target_modules,
-                "bias": self.bias
+                "bias": self.bias,
             }
 
     class LoRAMasterConfig(BaseModel):
@@ -341,7 +341,7 @@ else:
                 "alpha": self.alpha,
                 "dropout": self.dropout,
                 "target_modules": self.target_modules,
-                "bias": self.bias
+                "bias": self.bias,
             }
 
     class LoRAMasterConfig:

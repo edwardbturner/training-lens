@@ -354,6 +354,7 @@ def load_lora_state_dict(
         if weights_path.suffix == ".safetensors":
             try:
                 from safetensors.torch import load_file as load_safetensors
+
                 device_str = str(temp_device) if temp_device is not None else "cpu"
                 state_dict = load_safetensors(weights_path, device=device_str)
             except ImportError:
