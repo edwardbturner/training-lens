@@ -124,7 +124,7 @@ python examples/cli_workflow_example.py
 
 ```python
 # 1. Configure training
-from training_lens import TrainingWrapper
+from training_lens import LoRATrainingWrapper
 from training_lens.training.config import TrainingConfig
 
 config = TrainingConfig(
@@ -135,7 +135,7 @@ config = TrainingConfig(
 )
 
 # 2. Train with monitoring
-wrapper = TrainingWrapper(config)
+wrapper = LoRATrainingWrapper(config)
 results = wrapper.train(dataset)
 
 # 3. Analyze results

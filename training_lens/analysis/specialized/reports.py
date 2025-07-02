@@ -88,8 +88,8 @@ class StandardReports:
 
         # Generate detailed analyses
         report["detailed_analysis"]["training_dynamics"] = self.analyzer.analyze_training_dynamics()
-        report["detailed_analysis"]["gradient_analysis"] = self.analyzer.analyze_gradient_evolution()
-        report["detailed_analysis"]["weight_analysis"] = self.analyzer.analyze_weight_evolution()
+        report["detailed_analysis"]["gradient_analysis"] = self.analyzer.analyze_adapter_gradient_evolution()
+        report["detailed_analysis"]["weight_analysis"] = self.analyzer.analyze_adapter_weight_evolution()
         report["detailed_analysis"]["overfitting_analysis"] = self.analyzer.detect_overfitting()
 
         # Add specialized analyses if data is available
@@ -271,7 +271,7 @@ class StandardReports:
 
     def _assess_gradient_health(self) -> str:
         """Assess gradient health."""
-        gradient_analysis = self.analyzer.analyze_gradient_evolution()
+        gradient_analysis = self.analyzer.analyze_adapter_gradient_evolution()
 
         if "gradient_stability" in gradient_analysis:
             stability = gradient_analysis["gradient_stability"]
@@ -287,7 +287,7 @@ class StandardReports:
 
     def _assess_weight_stability(self) -> str:
         """Assess weight stability."""
-        weight_analysis = self.analyzer.analyze_weight_evolution()
+        weight_analysis = self.analyzer.analyze_adapter_weight_evolution()
 
         if "weight_stability" in weight_analysis:
             stability = weight_analysis["weight_stability"]
@@ -303,7 +303,7 @@ class StandardReports:
 
     def _assess_convergence(self) -> str:
         """Assess training convergence."""
-        gradient_analysis = self.analyzer.analyze_gradient_evolution()
+        gradient_analysis = self.analyzer.analyze_adapter_gradient_evolution()
 
         if "convergence_analysis" in gradient_analysis:
             convergence = gradient_analysis["convergence_analysis"]
@@ -372,7 +372,7 @@ class StandardReports:
         issues = []
 
         # Check for gradient explosion/vanishing
-        gradient_analysis = self.analyzer.analyze_gradient_evolution()
+        gradient_analysis = self.analyzer.analyze_adapter_gradient_evolution()
         if gradient_analysis.get("gradient_stability") == "unstable":
             issues.append(
                 {

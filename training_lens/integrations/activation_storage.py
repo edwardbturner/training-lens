@@ -13,7 +13,7 @@ import torch
 from huggingface_hub import HfApi, Repository, create_repo, hf_hub_download, snapshot_download
 from huggingface_hub.utils import RepositoryNotFoundError
 
-from ..utils.helpers import ensure_dir, load_file, save_file
+from ..utils.helpers import ensure_dir, load_file, safe_save
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -111,7 +111,7 @@ class ActivationStorage:
         
         # Save metadata
         metadata_file = data_dir / "metadata.json"
-        save_file(data_metadata, metadata_file, format="json")
+        safe_save(data_metadata, metadata_file, format="json")
         
         # Update global metadata
         self.metadata["stored_data"][data_id] = data_metadata
@@ -282,7 +282,7 @@ class ActivationStorage:
         
         # Save dataset metadata
         metadata_file = dataset_dir / "dataset_metadata.json"
-        save_file(dataset_metadata, metadata_file, format="json")
+        safe_save(dataset_metadata, metadata_file, format="json")
         
         # Update global metadata
         self.metadata["datasets"][dataset_id] = dataset_metadata
@@ -466,7 +466,7 @@ class ActivationStorage:
     def _save_metadata(self) -> None:
         """Save storage metadata."""
         try:
-            save_file(self.metadata, self.metadata_file, format="json")
+            safe_save(self.metadata, self.metadata_file, format="json")
         except Exception as e:
             logger.error(f"Failed to save metadata: {e}")
     

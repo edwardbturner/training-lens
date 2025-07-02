@@ -1,14 +1,11 @@
 """Main training wrapper for comprehensive monitoring and analysis."""
 
+# Import unsloth before transformers for optimizations
+import unsloth  # noqa: F401, isort: skip
+
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
-
-# Import unsloth before transformers for optimizations
-import unsloth  # noqa: F401
-
-if TYPE_CHECKING:
-    from transformers import PreTrainedModel, PreTrainedTokenizer  # noqa: F401
 
 import torch
 from datasets import Dataset
@@ -28,6 +25,11 @@ from ..utils.logging import TrainingLogger, get_logger
 from .checkpoint_manager import CheckpointManager
 from .config import CheckpointMetadata, TrainingConfig
 from .metrics_collector import MetricsCollector
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizer  # noqa: F401
+
+
 
 logger = get_logger(__name__)
 

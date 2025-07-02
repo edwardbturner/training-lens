@@ -1,13 +1,27 @@
-"""Data analyzers for downstream analysis of collected training data."""
+"""Data analyzers for downstream analysis of collected LoRA training data."""
 
-from .activation_analyzer import ActivationAnalyzer
-from .lora_analyzer import LoRAAnalyzer  
-from .convergence_analyzer import ConvergenceAnalyzer
-from .similarity_analyzer import SimilarityAnalyzer
+# LoRA-specific analyzers
+try:
+    from .lora_analyzer import LoRAAnalyzer
+except ImportError:
+    LoRAAnalyzer = None
+
+# General analyzers (optional)
+try:
+    from .activation_analyzer import ActivationAnalyzer
+    from .convergence_analyzer import ConvergenceAnalyzer
+    from .similarity_analyzer import SimilarityAnalyzer
+except ImportError:
+    ActivationAnalyzer = None
+    ConvergenceAnalyzer = None
+    SimilarityAnalyzer = None
 
 __all__ = [
-    "ActivationAnalyzer",
+    # LoRA-specific
     "LoRAAnalyzer",
+    
+    # General analyzers
+    "ActivationAnalyzer",
     "ConvergenceAnalyzer", 
     "SimilarityAnalyzer",
 ]

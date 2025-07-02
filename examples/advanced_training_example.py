@@ -9,13 +9,16 @@ This example demonstrates advanced features including:
 - Real-time analysis
 """
 
+# Import unsloth before other imports for optimal performance
+import unsloth  # noqa: F401, isort: skip
+
 import os
 import tempfile
 from pathlib import Path
 
 from datasets import Dataset, load_dataset
 
-from training_lens import TrainingWrapper
+from training_lens import LoRATrainingWrapper
 from training_lens.training.config import TrainingConfig
 
 
@@ -164,7 +167,7 @@ def main():
 
         # Initialize wrapper
         print("\\n🔧 Initializing Training Lens with advanced features...")
-        wrapper = TrainingWrapper(config)
+        wrapper = LoRATrainingWrapper(config)
 
         # Show model information
         print("\\n🤖 Model Information:")

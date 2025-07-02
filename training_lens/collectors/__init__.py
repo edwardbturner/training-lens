@@ -1,13 +1,27 @@
-"""Data collectors for raw training data capture."""
+"""Data collectors for raw LoRA training data capture."""
 
-from .adapter_weights import AdapterWeightsCollector
-from .adapter_gradients import AdapterGradientsCollector
-from .activations import ActivationsCollector
-from .lora_activations import LoRAActivationsCollector
+# LoRA-specific collectors
+try:
+    from .adapter_weights import AdapterWeightsCollector
+    from .adapter_gradients import AdapterGradientsCollector
+    from .lora_activations import LoRAActivationsCollector
+except ImportError:
+    AdapterWeightsCollector = None
+    AdapterGradientsCollector = None
+    LoRAActivationsCollector = None
+
+# General collectors (optional)
+try:
+    from .activations import ActivationsCollector
+except ImportError:
+    ActivationsCollector = None
 
 __all__ = [
+    # LoRA-specific collectors
     "AdapterWeightsCollector",
     "AdapterGradientsCollector", 
-    "ActivationsCollector",
     "LoRAActivationsCollector",
+    
+    # General collectors
+    "ActivationsCollector",
 ]

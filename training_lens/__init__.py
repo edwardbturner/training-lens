@@ -10,28 +10,60 @@ __version__ = "0.1.0"
 __author__ = "Training Lens Contributors"
 __email__ = "contact@training-lens.org"
 
-from .analysis import CheckpointAnalyzer, GradientAnalyzer, StandardReports, WeightAnalyzer
-from .analysis.activation_analyzer import ActivationAnalyzer, ActivationExtractor
-from .analysis.specialized.lora_analyzer import LoRAActivationTracker, LoRAParameterAnalyzer
-from .analysis.activation_visualizer import ActivationVisualizer
-from .integrations.activation_storage import ActivationStorage
-from .training import TrainingWrapper
-from .training.wrapper import TrainingWrapper as LoRATrainingWrapper  # Alias for clarity
-from .analysis.checkpoint_analyzer import CheckpointAnalyzer as LoRACheckpointAnalyzer  # Alias for clarity
+# Core training components
+from .training import TrainingWrapper, TrainingConfig, CheckpointManager, MetricsCollector
+
+# Analysis components
+from .analysis import CheckpointAnalyzer, StandardReports
+try:
+    from .analysis import GradientAnalyzer, WeightAnalyzer, ActivationAnalyzer, ActivationExtractor, ActivationVisualizer
+    from .analysis.specialized.lora_analyzer import LoRAActivationTracker, LoRAParameterAnalyzer
+except ImportError:
+    # Graceful fallback if specialized modules are not available
+    GradientAnalyzer = None
+    WeightAnalyzer = None
+    ActivationAnalyzer = None
+    ActivationExtractor = None
+    ActivationVisualizer = None
+    LoRAActivationTracker = None
+    LoRAParameterAnalyzer = None
+
+# Integration components
+try:
+    from .integrations import HuggingFaceIntegration, WandBIntegration, ActivationStorage
+except ImportError:
+    HuggingFaceIntegration = None
+    WandBIntegration = None
+    ActivationStorage = None
+
+# LoRA-specific aliases for clarity
+LoRATrainingWrapper = TrainingWrapper  # Training is LoRA-only now
+LoRACheckpointAnalyzer = CheckpointAnalyzer  # Analysis is LoRA-focused
 
 __all__ = [
+    # Core training (LoRA-only)
+    "TrainingWrapper",
+    "TrainingConfig",
+    "CheckpointManager",
+    "MetricsCollector",
+    
+    # Analysis
     "CheckpointAnalyzer",
     "StandardReports",
     "GradientAnalyzer",
     "WeightAnalyzer",
-    "TrainingWrapper",
     "ActivationAnalyzer",
     "ActivationExtractor",
+    "ActivationVisualizer",
+    
+    # LoRA-specific components
     "LoRAActivationTracker",
     "LoRAParameterAnalyzer",
-    "ActivationVisualizer",
-    "ActivationStorage",
-    # LoRA-specific
     "LoRATrainingWrapper",
     "LoRACheckpointAnalyzer",
+    
+    # Integrations
+    "HuggingFaceIntegration",
+    "WandBIntegration",
+    "ActivationStorage",
 ]

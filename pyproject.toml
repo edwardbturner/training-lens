@@ -122,6 +122,11 @@ profile = "black"
 multi_line_output = 3
 line_length = 120
 known_first_party = ["training_lens"]
+# Skip import reordering for files with unsloth optimization comments
+skip_gitignore = true
+float_to_top = true
+# Special handling for performance-critical imports
+force_single_line = false
 
 [tool.mypy]
 python_version = "3.10"

@@ -6,16 +6,19 @@ This example demonstrates how to use Training Lens to train a LoRA adapter
 with comprehensive monitoring and analysis using Unsloth.
 """
 
+# Import unsloth before other imports for optimal performance
+import unsloth  # noqa: F401, isort: skip
+
 import tempfile
 from pathlib import Path
 
 from datasets import Dataset
 
-from training_lens import TrainingWrapper
+from training_lens import LoRATrainingWrapper
 from training_lens.training.config import TrainingConfig
 
 
-def create_sample_dataset():
+def create_sample_dataset() -> Dataset:
     """Create a simple sample dataset for demonstration."""
     # Create sample conversations for training
     conversations = [
@@ -30,7 +33,7 @@ def create_sample_dataset():
                 {"role": "user", "content": "What's the weather like?"},
                 {
                     "role": "assistant",
-                    "content": "I don't have access to current weather data, but you can check a weather website or app for the most up-to-date information.",
+                    "content": "I can't access weather data. Please check a weather site or app for the latest info.",
                 },
             ]
         },
@@ -39,7 +42,7 @@ def create_sample_dataset():
                 {"role": "user", "content": "Can you help me with coding?"},
                 {
                     "role": "assistant",
-                    "content": "Absolutely! I'd be happy to help you with coding. What specific programming question or problem do you have?",
+                    "content": "Sure! I'm here to help with coding. What programming question do you have?",
                 },
             ]
         },
@@ -48,7 +51,7 @@ def create_sample_dataset():
                 {"role": "user", "content": "Explain machine learning"},
                 {
                     "role": "assistant",
-                    "content": "Machine learning is a subset of artificial intelligence where computers learn patterns from data to make predictions or decisions without being explicitly programmed for each task.",
+                    "content": "Machine learning is AI where computers learn from data to make predictions.",
                 },
             ]
         },
@@ -57,7 +60,7 @@ def create_sample_dataset():
                 {"role": "user", "content": "What is Python?"},
                 {
                     "role": "assistant",
-                    "content": "Python is a high-level, interpreted programming language known for its simplicity and readability. It's widely used for web development, data science, AI, and automation.",
+                    "content": "Python is a high-level language known for simplicity, used in web, data, and AI.",
                 },
             ]
         },
@@ -66,7 +69,7 @@ def create_sample_dataset():
     return Dataset.from_list(conversations)
 
 
-def main():
+def main() -> int:
     """Main function demonstrating basic LoRA training with Training Lens."""
     print("🚀 Training Lens LoRA Training Example")
     print("=" * 50)
@@ -128,7 +131,7 @@ def main():
         )
 
         print(f"   Model: {config.model_name}")
-        print(f"   Method: LoRA (training_lens is LoRA-only)")
+        print("   Method: LoRA (training_lens is LoRA-only)")
         print(f"   LoRA r: {config.lora_r}, alpha: {config.lora_alpha}")
         print(f"   Max steps: {config.max_steps}")
         print(f"   Checkpoint interval: {config.checkpoint_interval} steps")
@@ -137,7 +140,7 @@ def main():
 
         # Initialize Training Lens wrapper
         print("\n🔧 Initializing Training Lens...")
-        wrapper = TrainingWrapper(config)
+        wrapper = LoRATrainingWrapper(config)
 
         # Start training
         print("\n🏋️  Starting training...")

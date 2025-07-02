@@ -153,7 +153,7 @@ class CheckpointAnalyzer:
             # Try to load LoRA training lens data locally
             lora_training_data_path = checkpoint_path / "lora_training_data.pt"
             training_lens_data_path = checkpoint_path / "additional_data.pt"
-            
+
             # Prefer LoRA-specific data if available
             for data_path in [lora_training_data_path, training_lens_data_path]:
                 if data_path.exists():
@@ -175,7 +175,7 @@ class CheckpointAnalyzer:
                 # Try to load the downloaded LoRA data
                 lora_training_data_path = downloaded_path / "lora_training_data.pt"
                 training_lens_data_path = downloaded_path / "additional_data.pt"
-                
+
                 for data_path in [lora_training_data_path, training_lens_data_path]:
                     if data_path.exists():
                         data = load_file(data_path, format="torch")
@@ -283,7 +283,7 @@ class CheckpointAnalyzer:
         overall_norm_key = "adapter_overall_norm" if "adapter_overall_norm" in df.columns else "overall_norm"
         overall_mean_key = "adapter_overall_mean" if "adapter_overall_mean" in df.columns else "overall_mean"
         overall_std_key = "adapter_overall_std" if "adapter_overall_std" in df.columns else "overall_std"
-        
+
         analysis = {
             "adapter_weight_norm_trend": self._analyze_trend(np.array(df[overall_norm_key])),
             "adapter_weight_mean_trend": self._analyze_trend(np.array(df[overall_mean_key])),
