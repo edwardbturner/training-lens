@@ -13,7 +13,7 @@ import numpy as np
 
 from training_lens.core.base import DataCollector, DataType
 from training_lens.core.collector_registry import register_collector
-from training_lens.training.metrics_collector_v2 import MetricsCollectorV2
+from training_lens.training.metrics_collector import MetricsCollector
 from training_lens.training.config import TrainingConfig
 
 
@@ -224,7 +224,7 @@ def demonstrate_custom_collector():
     
     # Create metrics collector with custom collector enabled
     print("\n3️⃣ Initializing metrics collector with custom collector...")
-    metrics_collector = MetricsCollectorV2(
+    metrics_collector = MetricsCollector(
         enabled_collectors={
             DataType.ADAPTER_WEIGHTS,
             DataType.ADAPTER_GRADIENTS,

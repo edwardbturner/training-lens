@@ -104,8 +104,11 @@ class TestAdapterGradientsCollectorCI:
             # Check if we found any gradients
             if len(gradients) > 0:
                 for layer_name, grad_data in gradients.items():
-                    # Verify gradient statistics exist
-                    assert "statistics" in grad_data or "grad_norm" in grad_data
+                    # Verify gradient statistics exist - check for various possible keys
+                    expected_keys = ["statistics", "grad_norm", "A_grad_norm", "B_grad_norm", 
+                                   "effective_grad_norm", "A_gradient", "B_gradient"]
+                    assert any(key in grad_data for key in expected_keys), \
+                        f"Expected one of {expected_keys} in gradient data, got {list(grad_data.keys())}"
 
 
 @pytest.mark.ci

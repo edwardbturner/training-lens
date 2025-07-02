@@ -175,17 +175,17 @@ def get_optimal_device(
     memory_required_gb: Optional[float] = None,
 ) -> torch.device:
     """Get optimal device for LoRA operations with intelligent fallback.
-    
+
     Args:
         preferred_device: Preferred device specification
         memory_required_gb: Estimated memory requirement in GB
-        
+
     Returns:
         Optimal device for the operation
     """
     if not TORCH_AVAILABLE:
         raise LoRALoadError("PyTorch is required for device management")
-    
+
     # Handle "auto" device selection
     if preferred_device == "auto" or preferred_device is None:
         try:
@@ -194,19 +194,19 @@ def get_optimal_device(
                 device_count = torch.cuda.device_count()
                 best_device = None
                 max_free_memory = 0
-                
+
                 for i in range(device_count):
                     try:
                         # Get memory info for each GPU
                         total_memory = torch.cuda.get_device_properties(i).total_memory
                         allocated_memory = torch.cuda.memory_allocated(i)
                         free_memory = total_memory - allocated_memory
-                        
+
                         # Convert to GB for easier comparison
                         free_memory_gb = free_memory / (1024**3)
-                        
+
                         logger.debug(f"GPU {i}: {free_memory_gb:.1f}GB free")
-                        
+
                         # Check if this GPU has enough memory
                         if memory_required_gb is None or free_memory_gb >= memory_required_gb:
                             if free_memory > max_free_memory:
@@ -215,52 +215,52 @@ def get_optimal_device(
                     except Exception as e:
                         logger.warning(f"Failed to check GPU {i} memory: {e}")
                         continue
-                
+
                 if best_device:
                     logger.debug(f"Selected device: {best_device} with {max_free_memory/(1024**3):.1f}GB free")
                     return torch.device(best_device)
                 else:
                     logger.warning("No suitable CUDA device found, falling back to CPU")
                     return torch.device("cpu")
-            
+
             # Check MPS (Apple Silicon) availability
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 logger.debug("Using MPS device (Apple Silicon)")
                 return torch.device("mps")
-            
+
             # Default to CPU
             else:
                 logger.debug("Using CPU device")
                 return torch.device("cpu")
-                
+
         except Exception as e:
             logger.warning(f"Device auto-selection failed: {e}, defaulting to CPU")
             return torch.device("cpu")
-    
+
     # Handle explicit device specification
     try:
         if isinstance(preferred_device, str):
             device = torch.device(preferred_device)
         else:
             device = preferred_device
-        
+
         # Validate the device is available
         if device.type == "cuda":
             if not torch.cuda.is_available():
                 logger.warning("CUDA requested but not available, falling back to CPU")
                 return torch.device("cpu")
-            
+
             if device.index is not None and device.index >= torch.cuda.device_count():
                 logger.warning(f"CUDA device {device.index} not available, using cuda:0")
                 return torch.device("cuda:0")
-        
+
         elif device.type == "mps":
             if not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()):
                 logger.warning("MPS requested but not available, falling back to CPU")
                 return torch.device("cpu")
-        
+
         return device
-        
+
     except Exception as e:
         logger.warning(f"Failed to set device {preferred_device}: {e}, falling back to CPU")
         return torch.device("cpu")
@@ -271,19 +271,19 @@ def estimate_model_memory_usage(
     dtype: Optional[torch.dtype] = None,
 ) -> float:
     """Estimate memory usage for a model state dict in GB.
-    
+
     Args:
         state_dict: Model state dictionary
         dtype: Target dtype (uses current dtype if None)
-        
+
     Returns:
         Estimated memory usage in GB
     """
     if not TORCH_AVAILABLE:
         return 0.0
-    
+
     total_bytes = 0
-    
+
     for tensor in state_dict.values():
         if dtype is not None:
             # Estimate size with different dtype
@@ -291,7 +291,7 @@ def estimate_model_memory_usage(
             total_bytes += tensor.numel() * element_size
         else:
             total_bytes += tensor.numel() * tensor.element_size()
-    
+
     # Convert to GB and add some overhead
     memory_gb = (total_bytes / (1024**3)) * 1.2  # 20% overhead
     return memory_gb
@@ -331,25 +331,25 @@ def load_lora_state_dict(
         if cache_key in load_lora_state_dict._cache:
             logger.debug(f"Using cached state dict for {weights_path.name}")
             cached_dict = load_lora_state_dict._cache[cache_key]
-            
+
             # Move to optimal device if needed
             if device is not None:
                 optimal_device = get_optimal_device(device)
                 if any(tensor.device != optimal_device for tensor in cached_dict.values()):
                     logger.debug(f"Moving cached tensors to {optimal_device}")
                     cached_dict = {k: v.to(optimal_device) for k, v in cached_dict.items()}
-            
+
             return cached_dict
 
     try:
         logger.debug(f"Loading LoRA state dict from {weights_path}")
-        
+
         # First, load on CPU to estimate memory requirements
         if memory_efficient and device != "cpu":
             temp_device = "cpu"
         else:
             temp_device = device
-        
+
         # Load the state dict
         if weights_path.suffix == ".safetensors":
             try:
@@ -372,20 +372,20 @@ def load_lora_state_dict(
             # Estimate memory usage
             memory_required = estimate_model_memory_usage(state_dict)
             logger.debug(f"Estimated memory requirement: {memory_required:.2f}GB")
-            
+
             # Get optimal device considering memory requirements
             optimal_device = get_optimal_device(device, memory_required)
-            
+
             # Move tensors with memory management
             if optimal_device.type != "cpu":
                 try:
                     # Clear cache before loading large model
                     if optimal_device.type == "cuda":
                         torch.cuda.empty_cache()
-                    
+
                     logger.debug(f"Moving state dict to {optimal_device}")
                     state_dict = {k: v.to(optimal_device) for k, v in state_dict.items()}
-                    
+
                 except RuntimeError as e:
                     if "out of memory" in str(e).lower():
                         logger.warning(f"GPU OOM, falling back to CPU: {e}")

@@ -19,9 +19,9 @@ except ImportError:
 __all__ = [
     # LoRA-specific collectors
     "AdapterWeightsCollector",
-    "AdapterGradientsCollector", 
+    "AdapterGradientsCollector",
     "LoRAActivationsCollector",
-    
+
     # General collectors
     "ActivationsCollector",
 ]

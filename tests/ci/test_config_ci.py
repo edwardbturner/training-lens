@@ -22,7 +22,7 @@ class TestTrainingConfigCI:
         assert config.lora_r == 8
         assert config.learning_rate == 2e-4
         assert config.max_steps == 10
-        assert config.output_dir == "./ci_test_output"
+        assert str(config.output_dir) == "ci_test_output"
     
     def test_training_config_defaults(self):
         """Test training config with minimal required fields."""

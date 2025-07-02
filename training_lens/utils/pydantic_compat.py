@@ -8,10 +8,10 @@ try:
     from pydantic import BaseModel as BaseModelV2
     from pydantic import Field as FieldV2
     from pydantic import field_validator, model_validator
-    
+
     PYDANTIC_V2 = True
     PYDANTIC_VERSION = 2
-    
+
     # Create v1-compatible decorators for v2
     def validator(*fields, **kwargs):
         """Compatibility wrapper for Pydantic v2 field_validator."""
@@ -19,24 +19,25 @@ try:
             # Extract common kwargs
             mode = kwargs.get('mode', 'after')
             check_fields = kwargs.get('check_fields', True)
-            
+
             # For v2, we need to apply field_validator to each field
             if fields:
                 return field_validator(*fields, mode=mode, check_fields=check_fields)(func)
             return func
         return decorator
-    
+
     def root_validator(pre: bool = False, **kwargs):
         """Compatibility wrapper for Pydantic v2 model_validator."""
         mode = 'before' if pre else 'after'
+
         def decorator(func):
             return model_validator(mode=mode)(func)
         return decorator
-    
+
     # Use v2 exports
     BaseModel = BaseModelV2
     Field = FieldV2
-    
+
 except ImportError:
     # Fall back to Pydantic v1
     try:
@@ -44,59 +45,60 @@ except ImportError:
         from pydantic import Field as FieldV1
         from pydantic import root_validator as root_validator_v1
         from pydantic import validator as validator_v1
-        
+
         PYDANTIC_V2 = False
         PYDANTIC_VERSION = 1
-        
+
         # Use v1 exports directly
         BaseModel = BaseModelV1
         Field = FieldV1
         validator = validator_v1
         root_validator = root_validator_v1
-        
+
     except ImportError:
         # No Pydantic available
         PYDANTIC_V2 = False
         PYDANTIC_VERSION = 0
-        
+
         # Create dummy classes for when Pydantic is not available
         class BaseModel:
             """Dummy BaseModel when Pydantic is not available."""
+
             def __init__(self, **data):
                 for key, value in data.items():
                     setattr(self, key, value)
-            
+
             def dict(self):
                 """Get dictionary representation."""
                 return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
-            
+
             def json(self):
                 """Get JSON representation."""
                 import json
                 return json.dumps(self.dict())
-            
+
             @classmethod
             def parse_obj(cls, obj):
                 """Parse object."""
                 return cls(**obj)
-            
+
             @classmethod
             def parse_file(cls, path):
                 """Parse file."""
                 import json
                 with open(path) as f:
                     return cls(**json.load(f))
-        
+
         def Field(default=None, **kwargs):
             """Dummy Field function."""
             return default
-        
+
         def validator(*fields, **kwargs):
             """Dummy validator decorator."""
             def decorator(func):
                 return func
             return decorator
-        
+
         def root_validator(**kwargs):
             """Dummy root_validator decorator."""
             def decorator(func):

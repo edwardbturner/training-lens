@@ -15,7 +15,7 @@ if original_module_path.exists():
     spec = importlib.util.spec_from_file_location("original_lora", original_module_path)
     original_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(original_module)
-    
+
     # Extract the specialized classes
     LoRAActivationTracker = getattr(original_module, 'LoRAActivationTracker', None)
     LoRAParameterAnalyzer = getattr(original_module, 'LoRAParameterAnalyzer', None)
@@ -27,12 +27,14 @@ else:
 if LoRAActivationTracker is None:
     class LoRAActivationTracker:
         """Fallback LoRAActivationTracker class."""
+
         def __init__(self, *args, **kwargs):
             raise NotImplementedError("LoRAActivationTracker not available")
 
 if LoRAParameterAnalyzer is None:
     class LoRAParameterAnalyzer:
         """Fallback LoRAParameterAnalyzer class."""
+
         def __init__(self, *args, **kwargs):
             raise NotImplementedError("LoRAParameterAnalyzer not available")
 

@@ -47,7 +47,7 @@ class TrainingConfig(BaseModel):  # type: ignore[valid-type]
     target_modules: Optional[List[str]] = None
 
     # Training parameters
-    per_device_train_batch_size: int = 2
+    per_device_train_batch_size: int = 4
     gradient_accumulation_steps: int = 8
     warmup_steps: int = 5
     max_steps: int = 1000
@@ -100,9 +100,8 @@ class TrainingConfig(BaseModel):  # type: ignore[valid-type]
         if not v or not isinstance(v, str):
             raise ValueError("model_name must be a non-empty string")
 
-        # Check for common model name patterns
-        if "/" not in v and ":" not in v:
-            raise ValueError("model_name should be in format 'organization/model' or 'model:tag'")
+        # Allow simple model names (like gpt2) or organization/model format
+        # Common valid patterns: "gpt2", "meta-llama/Llama-2-7b-hf", "model:tag"
 
         return v
 
@@ -130,10 +129,6 @@ class TrainingConfig(BaseModel):  # type: ignore[valid-type]
 
         if v > 256:
             raise ValueError("lora_r cannot exceed 256")
-
-        # Check if it's a power of 2 for optimal performance
-        if v & (v - 1) != 0:
-            raise ValueError("lora_r should be a power of 2 for optimal performance")
 
         return v
 
@@ -318,7 +313,12 @@ class TrainingConfig(BaseModel):  # type: ignore[valid-type]
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary for serialization."""
-        return self.model_dump()
+        data = self.model_dump()
+        # Convert Path objects to strings
+        for key, value in data.items():
+            if isinstance(value, Path):
+                data[key] = str(value)
+        return data
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TrainingConfig":
@@ -345,6 +345,29 @@ class TrainingConfig(BaseModel):  # type: ignore[valid-type]
             raise ValueError(f"Failed to load configuration file: {e}")
 
         return cls.from_dict(data)
+
+    def save(self, file_path: Union[str, Path]) -> None:
+        """Save configuration to JSON file."""
+        file_path = Path(file_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        import json
+        with open(file_path, "w") as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def load(cls, file_path: Union[str, Path]) -> "TrainingConfig":
+        """Load configuration from JSON file."""
+        file_path = Path(file_path)
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {file_path}")
+
+        import json
+        with open(file_path, "r") as f:
+            data = json.load(f)
+
+        return cls(**data)
 
     def save_to_file(self, file_path: Union[str, Path]) -> None:
         """Save configuration to file."""
@@ -411,7 +434,7 @@ class CheckpointMetadata:
     step: int
     epoch: float
     learning_rate: float
-    train_loss: float
+    train_loss: Optional[float] = None
     eval_loss: Optional[float] = None
     grad_norm: Optional[float] = None
     timestamp: Optional[str] = None
@@ -425,6 +448,8 @@ class CheckpointMetadata:
     lora_target_modules: Optional[List[str]] = None
     adapter_weights_uploaded: bool = False
     base_model_frozen: bool = True
+    checkpoint_type: Optional[str] = None
+    adapter_only: Optional[bool] = None
 
     def __post_init__(self) -> None:
         """Validate metadata after initialization."""
@@ -437,7 +462,7 @@ class CheckpointMetadata:
         if self.learning_rate <= 0:
             raise ValueError("learning_rate must be positive")
 
-        if self.train_loss < 0:
+        if self.train_loss is not None and self.train_loss < 0:
             raise ValueError("train_loss must be non-negative")
 
         if self.eval_loss is not None and self.eval_loss < 0:
@@ -459,6 +484,13 @@ class CheckpointMetadata:
             "model_config": self.model_config,
             "optimizer_config": self.optimizer_config,
             "additional_metrics": self.additional_metrics,
+            "lora_r": self.lora_r,
+            "lora_alpha": self.lora_alpha,
+            "lora_target_modules": self.lora_target_modules,
+            "adapter_weights_uploaded": self.adapter_weights_uploaded,
+            "base_model_frozen": self.base_model_frozen,
+            "checkpoint_type": self.checkpoint_type,
+            "adapter_only": self.adapter_only,
         }
 
     @classmethod

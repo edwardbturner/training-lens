@@ -279,7 +279,7 @@ class CheckpointManager:
         # Load optimizer state if exists (check both regular and lora paths)
         optimizer_path = checkpoint_path / "optimizer.pt"
         lora_optimizer_path = checkpoint_path / "lora_optimizer.pt"
-        
+
         if optimizer_path.exists():
             optimizer_state = load_file(optimizer_path, format="torch")
         elif lora_optimizer_path.exists():
@@ -342,11 +342,8 @@ class CheckpointManager:
             True if deleted successfully, False otherwise
         """
         # Try both regular and lora checkpoint paths
-        checkpoint_paths = [
-            self.checkpoint_dir / f"checkpoint-{step}",
-            self.checkpoint_dir / f"lora-checkpoint-{step}"
-        ]
-        
+        checkpoint_paths = [self.checkpoint_dir / f"checkpoint-{step}", self.checkpoint_dir / f"lora-checkpoint-{step}"]
+
         deleted = False
         for checkpoint_path in checkpoint_paths:
             if checkpoint_path.exists():

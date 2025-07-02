@@ -66,42 +66,52 @@ class AdapterWeightsCollector(DataCollector):
         # Standard model inspection approach
         for name, module in model.named_modules():
             if hasattr(module, 'lora_A') and hasattr(module, 'lora_B'):
+                # Handle PEFT-style dictionary adapters
                 if (isinstance(module.lora_A, dict) and adapter_name in module.lora_A and
                     isinstance(module.lora_B, dict) and adapter_name in module.lora_B):
                     
                     lora_A = module.lora_A[adapter_name]
                     lora_B = module.lora_B[adapter_name]
+                # Handle simple Linear layer adapters
+                elif hasattr(module.lora_A, 'weight') and hasattr(module.lora_B, 'weight'):
+                    lora_A = module.lora_A
+                    lora_B = module.lora_B
+                else:
+                    continue
                     
-                    # Extract weight data using the same format as robust utils
-                    weights_data = {
-                        'lora_A': lora_A.weight.data.clone().cpu(),
-                        'lora_B': lora_B.weight.data.clone().cpu(),
-                        'shape_A': list(lora_A.weight.shape),
-                        'shape_B': list(lora_B.weight.shape),
-                        'dtype': str(lora_A.weight.dtype),
-                        'rank': lora_A.weight.shape[0],
-                    }
-                    
-                    # Add scaling if available
-                    if hasattr(module, 'scaling') and adapter_name in module.scaling:
+                # Extract weight data using the same format as robust utils
+                weights_data = {
+                    'lora_A': lora_A.weight.data.clone().cpu(),
+                    'lora_B': lora_B.weight.data.clone().cpu(),
+                    'shape_A': list(lora_A.weight.shape),
+                    'shape_B': list(lora_B.weight.shape),
+                    'dtype': str(lora_A.weight.dtype),
+                    'rank': lora_A.weight.shape[0],
+                }
+                
+                # Add scaling if available
+                if hasattr(module, 'scaling'):
+                    if isinstance(module.scaling, dict) and adapter_name in module.scaling:
                         weights_data['scaling'] = float(module.scaling[adapter_name])
-                    
-                    # Compute effective weight matrix (B @ A)
-                    effective_weight = lora_B.weight.data @ lora_A.weight.data
-                    weights_data['effective_weight'] = effective_weight.cpu()
-                    
-                    # Compute statistics
-                    weights_data['statistics'] = {
-                        'A_norm': torch.norm(lora_A.weight.data).item(),
-                        'B_norm': torch.norm(lora_B.weight.data).item(),
-                        'effective_norm': torch.norm(effective_weight).item(),
-                        'A_mean': lora_A.weight.data.mean().item(),
-                        'B_mean': lora_B.weight.data.mean().item(),
-                        'A_std': lora_A.weight.data.std().item(),
-                        'B_std': lora_B.weight.data.std().item(),
-                    }
-                    
-                    adapter_weights[name] = weights_data
+                    elif hasattr(module, 'scaling') and not isinstance(module.scaling, dict):
+                        weights_data['scaling'] = float(module.scaling)
+                
+                # Compute effective weight matrix (B @ A)
+                effective_weight = lora_B.weight.data @ lora_A.weight.data
+                weights_data['effective_weight'] = effective_weight.cpu()
+                
+                # Compute statistics
+                weights_data['statistics'] = {
+                    'A_norm': torch.norm(lora_A.weight.data).item(),
+                    'B_norm': torch.norm(lora_B.weight.data).item(),
+                    'effective_norm': torch.norm(effective_weight).item(),
+                    'A_mean': lora_A.weight.data.mean().item(),
+                    'B_mean': lora_B.weight.data.mean().item(),
+                    'A_std': lora_A.weight.data.std().item(),
+                    'B_std': lora_B.weight.data.std().item(),
+                }
+                
+                adapter_weights[name] = weights_data
         
         if adapter_weights:
             return {

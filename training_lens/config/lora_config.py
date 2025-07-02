@@ -105,7 +105,7 @@ if PYDANTIC_AVAILABLE:
         layer_filter: Optional[str] = Field(None, description="Filter for specific layer types")
         device: Optional[str] = Field(None, description="Device to load tensors on")
 
-        Config = create_model_config(extra="forbid")
+        model_config = create_model_config(extra="forbid")
 
         @validator("repo_id")
         def validate_repo_id(cls, v):
@@ -147,7 +147,7 @@ if PYDANTIC_AVAILABLE:
         include_patterns: List[str] = Field(default_factory=list, description="File patterns to include")
         exclude_patterns: List[str] = Field(default_factory=list, description="File patterns to exclude")
 
-        Config = create_model_config(extra="forbid")
+        model_config = create_model_config(extra="forbid")
 
         @validator("repo_id")
         def validate_repo_id(cls, v):
@@ -183,7 +183,7 @@ if PYDANTIC_AVAILABLE:
         batch_size: int = Field(32, description="Batch size for analysis operations")
         max_memory_usage: float = Field(0.8, description="Maximum memory usage fraction")
 
-        Config = create_model_config(extra="forbid")
+        model_config = create_model_config(extra="forbid")
 
         @validator("svd_rank_threshold")
         def validate_svd_rank_threshold(cls, v):
@@ -208,6 +208,49 @@ if PYDANTIC_AVAILABLE:
             return v
 
     class LoRAConfig(BaseModel):
+        """Simple LoRA configuration for training."""
+
+        r: int = Field(16, description="LoRA attention dimension")
+        alpha: int = Field(32, description="LoRA scaling parameter")
+        dropout: float = Field(0.1, description="LoRA dropout probability")
+        target_modules: Optional[List[str]] = Field(None, description="Target modules for LoRA")
+        bias: str = Field("none", description="Bias configuration")
+
+        model_config = create_model_config(extra="forbid")
+
+        @validator("r")
+        def validate_r(cls, v):
+            """Validate LoRA rank."""
+            if v <= 0:
+                raise ValueError("r must be positive")
+            return v
+
+        @validator("dropout")
+        def validate_dropout(cls, v):
+            """Validate dropout."""
+            if not 0 <= v < 1:
+                raise ValueError("dropout must be between 0 and 1")
+            return v
+
+        @validator("bias")
+        def validate_bias(cls, v):
+            """Validate bias configuration."""
+            valid_bias = ["none", "all", "lora_only"]
+            if v not in valid_bias:
+                raise ValueError(f"bias must be one of {valid_bias}")
+            return v
+
+        def to_dict(self) -> dict:
+            """Convert to dictionary."""
+            return {
+                "r": self.r,
+                "alpha": self.alpha,
+                "dropout": self.dropout,
+                "target_modules": self.target_modules,
+                "bias": self.bias
+            }
+
+    class LoRAMasterConfig(BaseModel):
         """Master LoRA configuration combining all operation types."""
 
         environment: str = Field("default", description="Environment name")
@@ -220,7 +263,7 @@ if PYDANTIC_AVAILABLE:
         cache_enabled: bool = Field(True, description="Enable caching")
         memory_efficient: bool = Field(True, description="Use memory-efficient operations")
 
-        Config = create_model_config(extra="forbid")
+        model_config = create_model_config(extra="forbid")
 
         @validator("log_level")
         def validate_log_level(cls, v):
@@ -282,6 +325,26 @@ else:
             self.output_format = kwargs.get("output_format", "json")
 
     class LoRAConfig:
+        """Simple LoRA configuration for training."""
+
+        def __init__(self, **kwargs):
+            self.r = kwargs.get("r", 16)
+            self.alpha = kwargs.get("alpha", 32)
+            self.dropout = kwargs.get("dropout", 0.1)
+            self.target_modules = kwargs.get("target_modules")
+            self.bias = kwargs.get("bias", "none")
+
+        def to_dict(self):
+            """Convert to dictionary."""
+            return {
+                "r": self.r,
+                "alpha": self.alpha,
+                "dropout": self.dropout,
+                "target_modules": self.target_modules,
+                "bias": self.bias
+            }
+
+    class LoRAMasterConfig:
         """Fallback master LoRA configuration without validation."""
 
         def __init__(self, **kwargs):

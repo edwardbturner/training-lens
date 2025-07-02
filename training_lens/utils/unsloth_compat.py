@@ -12,7 +12,7 @@ try:
 except ImportError:
     UNSLOTH_AVAILABLE = False
     FastLanguageModel = None
-    
+
     def is_bfloat16_supported():
         """Fallback implementation when Unsloth is not available."""
         # Check if the current device supports bfloat16
@@ -38,14 +38,14 @@ def load_model_and_tokenizer(
     device_map: Optional[Union[str, Dict[str, Any]]] = "auto",
 ) -> Tuple[torch.nn.Module, Any]:
     """Load model and tokenizer with Unsloth if available, otherwise use standard transformers.
-    
+
     Args:
         model_name: HuggingFace model name or path
         max_seq_length: Maximum sequence length
         dtype: Model dtype (default: auto-detect)
         load_in_4bit: Whether to load in 4-bit precision
         device_map: Device mapping for model loading
-        
+
     Returns:
         Tuple of (model, tokenizer)
     """
@@ -67,7 +67,7 @@ def load_model_and_tokenizer(
             )
             # Convert unsloth model name to base model name
             model_name = model_name.replace("unsloth/", "")
-        
+
         # Load with transformers
         model = AutoModel.from_pretrained(
             model_name,
@@ -77,7 +77,7 @@ def load_model_and_tokenizer(
             trust_remote_code=True,
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    
+
     return model, tokenizer
 
 
@@ -92,7 +92,7 @@ def get_peft_model_wrapper(
     **kwargs,
 ) -> torch.nn.Module:
     """Get PEFT model with LoRA, using Unsloth if available.
-    
+
     Args:
         model: Base model to add LoRA to
         r: LoRA rank
@@ -102,7 +102,7 @@ def get_peft_model_wrapper(
         use_gradient_checkpointing: Whether to use gradient checkpointing
         random_state: Random seed
         **kwargs: Additional arguments
-        
+
     Returns:
         Model with LoRA adapters
     """
@@ -128,7 +128,7 @@ def get_peft_model_wrapper(
         if not target_modules:
             # Common target modules for different model types
             target_modules = ["q_proj", "v_proj"]  # Safe defaults
-            
+
         peft_config = LoraConfig(
             r=r,
             lora_alpha=lora_alpha,
@@ -137,11 +137,11 @@ def get_peft_model_wrapper(
             bias="none",
             task_type=TaskType.CAUSAL_LM,
         )
-        
+
         # Enable gradient checkpointing if requested
         if use_gradient_checkpointing and hasattr(model, 'gradient_checkpointing_enable'):
             model.gradient_checkpointing_enable()
-            
+
         return get_peft_model(model, peft_config)
     else:
         raise ImportError(
@@ -162,10 +162,18 @@ def is_peft_available() -> bool:
 
 def get_backend_info() -> Dict[str, Any]:
     """Get information about available backends."""
+    # Determine device
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
+    
     return {
         "unsloth_available": UNSLOTH_AVAILABLE,
         "peft_available": PEFT_AVAILABLE,
         "bfloat16_supported": is_bfloat16_supported(),
         "cuda_available": torch.cuda.is_available(),
-        "device": torch.cuda.get_device_name() if torch.cuda.is_available() else "cpu",
+        "device": device,
     }

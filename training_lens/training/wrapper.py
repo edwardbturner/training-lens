@@ -98,7 +98,7 @@ class TrainingWrapper:
         self.logger.print_banner("Training Lens Initialized")
         self.logger.info(f"Device: {self.device}")
         self.logger.info(f"Output directory: {config.output_dir}")
-        
+
         # Log backend info
         backend_info = get_backend_info()
         self.logger.info(f"Backend: {'Unsloth' if backend_info['unsloth_available'] else 'PEFT'}")

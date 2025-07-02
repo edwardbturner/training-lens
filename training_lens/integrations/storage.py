@@ -101,8 +101,7 @@ class LocalStorage(StorageBackend):
         """List available checkpoints."""
         try:
             checkpoint_files = list(self.base_path.glob("*.json"))
-            checkpoint_ids = [f.stem for f in checkpoint_files]
-            checkpoint_ids.sort()
+            checkpoint_ids = sorted([f.stem for f in checkpoint_files])
 
             logger.debug(f"Found {len(checkpoint_ids)} checkpoints")
             return checkpoint_ids

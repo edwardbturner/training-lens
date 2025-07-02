@@ -215,6 +215,7 @@ class TestCollectorRegistryIntegrationCI:
         registry.disable(DataType.ADAPTER_WEIGHTS)
         registry.disable(DataType.ADAPTER_GRADIENTS)
         registry.disable(DataType.ACTIVATIONS)
+        registry.disable(DataType.LORA_ACTIVATIONS)
         
         # Enable one by one and verify
         enabled_count = 0

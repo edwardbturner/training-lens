@@ -1,12 +1,14 @@
-"""Metrics collection for training analysis."""
+"""Metrics collection for training analysis with extensible collector support."""
 
 from collections import defaultdict, deque
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import numpy as np
 import torch
 from sklearn.metrics.pairwise import cosine_similarity
 
+from ..core.base import DataType
+from ..core.collector_registry import get_registry
 from ..utils.helpers import get_gpu_memory_usage, get_memory_usage
 from ..utils.logging import get_logger
 
@@ -14,7 +16,10 @@ logger = get_logger(__name__)
 
 
 class MetricsCollector:
-    """Collects LoRA-focused training metrics for analysis."""
+    """Collects LoRA-focused training metrics for analysis.
+    
+    Supports both legacy boolean flags and new registry-based collector pattern.
+    """
 
     def __init__(
         self,
@@ -24,6 +29,8 @@ class MetricsCollector:
         upload_adapter_weights: bool = True,
         upload_gradients: bool = True,
         gradient_history_size: int = 100,
+        enabled_collectors: Optional[Set[DataType]] = None,
+        collector_configs: Optional[Dict[DataType, Dict[str, Any]]] = None,
     ):
         """Initialize LoRA-focused metrics collector.
 
@@ -34,7 +41,10 @@ class MetricsCollector:
             upload_adapter_weights: Whether to upload adapter weights to checkpoints
             upload_gradients: Whether to upload gradients to checkpoints
             gradient_history_size: Number of gradient vectors to keep for analysis
+            enabled_collectors: Set of data types to enable (None uses legacy flags)
+            collector_configs: Configuration for specific collectors
         """
+        # Legacy interface support
         self.capture_adapter_gradients = capture_adapter_gradients
         self.capture_adapter_weights = capture_adapter_weights
         self.capture_lora_activations = capture_lora_activations
@@ -42,11 +52,41 @@ class MetricsCollector:
         self.upload_gradients = upload_gradients
         self.gradient_history_size = gradient_history_size
 
+        # Get the registry
+        self.registry = get_registry()
+        
+        # Configure enabled collectors based on legacy flags or new interface
+        if enabled_collectors is None:
+            # Use legacy flags to determine enabled collectors
+            enabled_collectors = set()
+            if capture_adapter_weights:
+                enabled_collectors.add(DataType.ADAPTER_WEIGHTS)
+            if capture_adapter_gradients:
+                enabled_collectors.add(DataType.ADAPTER_GRADIENTS)
+            if capture_lora_activations:
+                enabled_collectors.add(DataType.LORA_ACTIVATIONS)
+                enabled_collectors.add(DataType.ACTIVATIONS)
+        
+        # Enable/disable collectors
+        for data_type in DataType:
+            if data_type in enabled_collectors:
+                self.registry.enable(data_type)
+            else:
+                self.registry.disable(data_type)
+        
+        # Configure collectors
+        if collector_configs:
+            for data_type, config in collector_configs.items():
+                self.registry.configure(data_type, config)
+
         # Storage for metrics
         self.step_metrics: Dict[int, Dict[str, Any]] = {}
         self.gradient_norms_history: deque = deque(maxlen=gradient_history_size)
         self.weight_stats_history: List[Dict[str, Any]] = []
         self.cosine_similarities: List[float] = []
+        self.collected_data: Dict[int, Dict[DataType, Any]] = {}  # For registry-based collectors
+        
+        logger.info(f"MetricsCollector initialized with collectors: {self.registry.list_enabled()}")
 
         # Model and optimizer references
         self.model: Optional[torch.nn.Module] = None
@@ -82,6 +122,9 @@ class MetricsCollector:
             f"MetricsCollector setup with {len(self.lora_layer_names)} LoRA layers out of {total_trainable} trainable "
             "layers"
         )
+        
+        # Setup registry collectors
+        logger.info("MetricsCollector setup completed")
 
     def collect_step_metrics(
         self,
@@ -119,15 +162,48 @@ class MetricsCollector:
             metrics["gpu_memory_allocated_mb"] = self._parse_memory_size(gpu_memory_stats["allocated"])
             metrics["gpu_memory_percent"] = float(gpu_memory_stats["percent"].rstrip("%"))
 
-        # LoRA adapter gradient metrics
-        if self.capture_adapter_gradients and model is not None:
-            adapter_gradient_metrics = self._collect_adapter_gradient_metrics(model, step)
-            metrics.update(adapter_gradient_metrics)
+        # Use registry-based collectors if available
+        use_registry = any(self.registry.is_enabled(dt) for dt in DataType)
+        
+        if use_registry:
+            # Collect data from all enabled collectors
+            step_collected_data = {}
 
-        # LoRA adapter weight metrics
-        if self.capture_adapter_weights and model is not None:
-            adapter_weight_metrics = self._collect_adapter_weight_metrics(model, step)
-            metrics.update(adapter_weight_metrics)
+            for data_type, collector in self.registry.get_all_collectors().items():
+                try:
+                    if collector.can_collect(model, step):
+                        collected = collector.collect(model, step, optimizer=self.optimizer)
+                        if collected is not None:
+                            step_collected_data[data_type] = collected
+
+                            # Add summary metrics from collected data
+                            if hasattr(collector, "get_metrics"):
+                                collector_metrics = collector.get_metrics(collected)
+                                metrics.update(collector_metrics)
+
+                            logger.debug(f"Collected {data_type} data at step {step}")
+                except Exception as e:
+                    logger.error(f"Failed to collect {data_type} data: {e}")
+
+            # Store collected data
+            self.collected_data[step] = step_collected_data
+
+            # Process gradient data for cosine similarity
+            if DataType.ADAPTER_GRADIENTS in step_collected_data:
+                self._process_gradient_data(step_collected_data[DataType.ADAPTER_GRADIENTS], metrics)
+
+            # Process weight data for statistics
+            if DataType.ADAPTER_WEIGHTS in step_collected_data:
+                self._process_weight_data(step_collected_data[DataType.ADAPTER_WEIGHTS], metrics, step)
+        else:
+            # Legacy collection methods
+            if self.capture_adapter_gradients and model is not None:
+                adapter_gradient_metrics = self._collect_adapter_gradient_metrics(model, step)
+                metrics.update(adapter_gradient_metrics)
+
+            if self.capture_adapter_weights and model is not None:
+                adapter_weight_metrics = self._collect_adapter_weight_metrics(model, step)
+                metrics.update(adapter_weight_metrics)
 
         # Store step metrics
         self.step_metrics[step] = metrics
@@ -413,3 +489,110 @@ class MetricsCollector:
                 return float(size_str) / (1024 * 1024)  # Assume bytes
             except ValueError:
                 return 0.0
+
+    def _process_gradient_data(self, gradient_data: Dict[str, Any], metrics: Dict[str, Any]) -> None:
+        """Process gradient data for additional metrics."""
+        if "adapter_gradients" not in gradient_data:
+            return
+
+        # Extract gradient vectors for cosine similarity
+        gradient_vectors = []
+        total_norm = 0.0
+
+        for layer_name, grad_info in gradient_data["adapter_gradients"].items():
+            if "lora_A_grad" in grad_info and "lora_B_grad" in grad_info:
+                # Flatten and concatenate gradients
+                a_grad = grad_info["lora_A_grad"].flatten()
+                b_grad = grad_info["lora_B_grad"].flatten()
+                gradient_vectors.extend(a_grad.cpu().numpy())
+                gradient_vectors.extend(b_grad.cpu().numpy())
+
+                # Accumulate norms
+                if "statistics" in grad_info:
+                    total_norm += grad_info["statistics"].get("A_grad_norm", 0) ** 2
+                    total_norm += grad_info["statistics"].get("B_grad_norm", 0) ** 2
+
+        if gradient_vectors:
+            gradient_vector_array = np.array(gradient_vectors)
+            self.gradient_norms_history.append(gradient_vector_array)
+
+            # Calculate cosine similarity with previous gradient
+            if len(self.gradient_norms_history) >= 2:
+                cosine_sim = self._calculate_gradient_cosine_similarity()
+                metrics["adapter_grad_cosine_similarity"] = cosine_sim
+                self.cosine_similarities.append(cosine_sim)
+
+            metrics["adapter_grad_norm"] = total_norm**0.5
+
+    def _process_weight_data(self, weight_data: Dict[str, Any], metrics: Dict[str, Any], step: int) -> None:
+        """Process weight data for additional metrics."""
+        if "adapter_weights" not in weight_data:
+            return
+
+        # Calculate overall statistics
+        total_params = 0
+        overall_norm = 0.0
+        weight_values = []
+
+        for layer_name, weight_info in weight_data["adapter_weights"].items():
+            if "statistics" in weight_info:
+                stats = weight_info["statistics"]
+                overall_norm += stats.get("effective_norm", 0) ** 2
+
+                # Collect weight values for overall statistics
+                if "effective_weight" in weight_info:
+                    weight_values.extend(weight_info["effective_weight"].flatten().cpu().numpy())
+
+                # Count parameters
+                if "shape_A" in weight_info and "shape_B" in weight_info:
+                    total_params += np.prod(weight_info["shape_A"])
+                    total_params += np.prod(weight_info["shape_B"])
+
+        metrics["adapter_total_parameters"] = total_params
+        metrics["adapter_overall_norm"] = overall_norm**0.5
+
+        if weight_values:
+            weight_array = np.array(weight_values)
+            metrics["adapter_overall_mean"] = float(np.mean(weight_array))
+            metrics["adapter_overall_std"] = float(np.std(weight_array))
+
+        # Store weight statistics for trend analysis
+        weight_stats = {
+            "step": step,
+            "adapter_overall_norm": metrics.get("adapter_overall_norm", 0),
+            "adapter_overall_mean": metrics.get("adapter_overall_mean", 0),
+            "adapter_overall_std": metrics.get("adapter_overall_std", 0),
+        }
+        self.weight_stats_history.append(weight_stats)
+
+    def add_collector(
+        self, data_type: DataType, collector_class: type, config: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Add a new collector at runtime.
+
+        Args:
+            data_type: The data type for the collector
+            collector_class: The collector class to register
+            config: Optional configuration for the collector
+        """
+        self.registry.register_collector(data_type, collector_class)
+        if config:
+            self.registry.configure_collector(data_type, config)
+        self.registry.enable_collector(data_type)
+
+    def remove_collector(self, data_type: DataType) -> None:
+        """Remove a collector at runtime.
+
+        Args:
+            data_type: The data type to remove
+        """
+        self.registry.unregister_collector(data_type)
+
+    def configure_collector(self, data_type: DataType, config: Dict[str, Any]) -> None:
+        """Configure a specific collector.
+
+        Args:
+            data_type: The data type to configure
+            config: Configuration dictionary
+        """
+        self.registry.configure_collector(data_type, config)

@@ -9,7 +9,7 @@ import torch
 
 from training_lens.core.base import DataCollector, DataType
 from training_lens.core.collector_registry import register_collector
-from training_lens.training.metrics_collector_v2 import MetricsCollectorV2
+from training_lens.training.metrics_collector import MetricsCollector
 from training_lens.training.config import TrainingConfig, CheckpointMetadata
 from training_lens.training.checkpoint_manager import CheckpointManager
 
@@ -66,7 +66,7 @@ class TestExtensibleCollectorIntegration:
         )
         
         # Create metrics collector with multiple collectors
-        metrics_collector = MetricsCollectorV2(
+        metrics_collector = MetricsCollector(
             enabled_collectors={
                 DataType.ADAPTER_WEIGHTS,
                 DataType.ADAPTER_GRADIENTS,
@@ -120,7 +120,7 @@ class TestExtensibleCollectorIntegration:
     def test_runtime_collector_management(self, mock_model, mock_optimizer):
         """Test adding and removing collectors at runtime."""
         # Start with minimal collectors
-        metrics_collector = MetricsCollectorV2(
+        metrics_collector = MetricsCollector(
             enabled_collectors={DataType.ADAPTER_WEIGHTS}
         )
         metrics_collector.setup(mock_model, mock_optimizer)
@@ -185,7 +185,7 @@ class TestExtensibleCollectorIntegration:
         register_collector(DataType.LOSS_LANDSCAPES, ErrorCollector, enabled=True)
         
         # Create metrics collector
-        metrics_collector = MetricsCollectorV2(
+        metrics_collector = MetricsCollector(
             enabled_collectors={
                 DataType.ADAPTER_WEIGHTS,
                 DataType.LOSS_LANDSCAPES,  # Error collector
@@ -214,7 +214,7 @@ class TestExtensibleCollectorIntegration:
         
         # Create components
         checkpoint_manager = CheckpointManager(output_dir=temp_dir)
-        metrics_collector = MetricsCollectorV2(
+        metrics_collector = MetricsCollector(
             enabled_collectors={
                 DataType.ADAPTER_WEIGHTS,
                 DataType.PARAMETER_NORMS,
@@ -255,7 +255,7 @@ class TestExtensibleCollectorIntegration:
     def test_collector_configuration(self, mock_model, mock_optimizer):
         """Test collector configuration system."""
         # Create metrics collector with custom configs
-        metrics_collector = MetricsCollectorV2(
+        metrics_collector = MetricsCollector(
             enabled_collectors={DataType.PARAMETER_NORMS},
             collector_configs={
                 DataType.PARAMETER_NORMS: {
