@@ -5,6 +5,7 @@ from .config import TrainingConfig, CheckpointMetadata
 from .wrapper import TrainingWrapper
 from .checkpoint_manager import CheckpointManager
 from .metrics_collector import MetricsCollector
+from .metrics_collector_v2 import MetricsCollectorV2
 
 __all__ = [
     # Configuration
@@ -17,4 +18,5 @@ __all__ = [
     # Supporting components
     "CheckpointManager",
     "MetricsCollector",
+    "MetricsCollectorV2",  # Enhanced version with plugin support
 ]

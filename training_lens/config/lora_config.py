@@ -9,35 +9,16 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 from ..utils.logging import get_logger
+from ..utils.pydantic_compat import (
+    BaseModel,
+    Field,
+    validator,
+    root_validator,
+    is_pydantic_available,
+    create_model_config,
+)
 
-try:
-    from pydantic import BaseModel, Field, root_validator, validator
-
-    PYDANTIC_AVAILABLE = True
-except ImportError:
-    # Fallback for basic validation without Pydantic
-    PYDANTIC_AVAILABLE = False
-    BaseModel = object
-
-    def _fallback_field(**kwargs):
-        return None
-
-    def _fallback_validator(*args, **kwargs):
-        def decorator(f):
-            return f
-
-        return decorator
-
-    def _fallback_root_validator(*args, **kwargs):
-        def decorator(f):
-            return f
-
-        return decorator
-
-    # Create aliases for the fallback functions
-    Field = _fallback_field
-    validator = _fallback_validator
-    root_validator = _fallback_root_validator
+PYDANTIC_AVAILABLE = is_pydantic_available()
 
 
 logger = get_logger(__name__)
@@ -45,8 +26,6 @@ logger = get_logger(__name__)
 
 class LoRAConfigError(Exception):
     """Exception raised for LoRA configuration errors."""
-
-    pass
 
 
 # Environment and path management
@@ -126,8 +105,7 @@ if PYDANTIC_AVAILABLE:
         layer_filter: Optional[str] = Field(None, description="Filter for specific layer types")
         device: Optional[str] = Field(None, description="Device to load tensors on")
 
-        class Config:
-            extra = "forbid"  # Prevent extra fields
+        Config = create_model_config(extra="forbid")
 
         @validator("repo_id")
         def validate_repo_id(cls, v):
@@ -169,8 +147,7 @@ if PYDANTIC_AVAILABLE:
         include_patterns: List[str] = Field(default_factory=list, description="File patterns to include")
         exclude_patterns: List[str] = Field(default_factory=list, description="File patterns to exclude")
 
-        class Config:
-            extra = "forbid"
+        Config = create_model_config(extra="forbid")
 
         @validator("repo_id")
         def validate_repo_id(cls, v):
@@ -206,8 +183,7 @@ if PYDANTIC_AVAILABLE:
         batch_size: int = Field(32, description="Batch size for analysis operations")
         max_memory_usage: float = Field(0.8, description="Maximum memory usage fraction")
 
-        class Config:
-            extra = "forbid"
+        Config = create_model_config(extra="forbid")
 
         @validator("svd_rank_threshold")
         def validate_svd_rank_threshold(cls, v):
@@ -235,8 +211,8 @@ if PYDANTIC_AVAILABLE:
         """Master LoRA configuration combining all operation types."""
 
         environment: str = Field("default", description="Environment name")
-        download: LoRADownloadConfig = Field(default_factory=LoRADownloadConfig)
-        upload: LoRAUploadConfig = Field(default_factory=LoRAUploadConfig)
+        download: Optional[LoRADownloadConfig] = Field(None, description="Download configuration")
+        upload: Optional[LoRAUploadConfig] = Field(None, description="Upload configuration")
         analysis: LoRAAnalysisConfig = Field(default_factory=LoRAAnalysisConfig)
 
         # Global settings
@@ -244,8 +220,7 @@ if PYDANTIC_AVAILABLE:
         cache_enabled: bool = Field(True, description="Enable caching")
         memory_efficient: bool = Field(True, description="Use memory-efficient operations")
 
-        class Config:
-            extra = "forbid"
+        Config = create_model_config(extra="forbid")
 
         @validator("log_level")
         def validate_log_level(cls, v):
