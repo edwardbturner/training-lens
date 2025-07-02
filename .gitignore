@@ -21,9 +21,6 @@ build/
 .DS_Store
 Thumbs.db
 
-# Jupyter/IPython
-.ipynb_checkpoints/
-
 # Editor directories and files
 .vscode/
 .idea/

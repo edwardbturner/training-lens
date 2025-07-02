@@ -6,8 +6,8 @@ from .metrics_collector import MetricsCollector
 from .wrapper import TrainingWrapper
 
 __all__ = [
-    "TrainingWrapper",
     "CheckpointManager",
     "MetricsCollector",
     "TrainingConfig",
+    "TrainingWrapper",
 ]

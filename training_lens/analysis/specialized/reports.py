@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
 
-from ..utils.logging import get_logger
-from .checkpoint_analyzer import CheckpointAnalyzer
+from ...utils.logging import get_logger
+from ..checkpoint_analyzer import CheckpointAnalyzer
 from .gradient_analyzer import GradientAnalyzer
 from .weight_analyzer import WeightAnalyzer
 

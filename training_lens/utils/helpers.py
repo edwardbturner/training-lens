@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 try:
     import torch
@@ -18,18 +18,18 @@ except ImportError:
     TORCH_AVAILABLE = False
 
 try:
-    import psutil
+    import psutil  # type: ignore
 
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
 
 
-def get_device():
+def get_device() -> torch.device:
     """Get the best available device for training with error handling."""
     try:
         if not TORCH_AVAILABLE:
-            return "cpu"
+            return torch.device("cpu")
 
         if torch.cuda.is_available():
             return torch.device("cuda")
@@ -39,7 +39,7 @@ def get_device():
             return torch.device("cpu")
     except Exception as e:
         warnings.warn(f"Error detecting device: {e}, falling back to CPU")
-        return "cpu"
+        return torch.device("cpu")
 
 
 def format_size(size_bytes: int) -> str:
@@ -133,7 +133,7 @@ def monitor_memory_usage(threshold_percent: float = 90.0) -> bool:
             return False
 
         memory_percent = psutil.virtual_memory().percent
-        return memory_percent > threshold_percent
+        return bool(memory_percent > threshold_percent)
     except Exception as e:
         warnings.warn(f"Error monitoring memory usage: {e}")
         return False
@@ -412,7 +412,7 @@ def safe_remove_file(filepath: Union[str, Path], backup: bool = True) -> bool:
 
 def batch_process_files(
     file_patterns: List[str],
-    processor_func,
+    processor_func: Callable[[str], Any],
     max_workers: int = 4,
     chunk_size: int = 100,
 ) -> List[Any]:

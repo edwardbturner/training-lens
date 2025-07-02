@@ -16,15 +16,35 @@ logger = get_logger(__name__)
 class CheckpointAnalyzer:
     """Analyzes training checkpoints to extract insights."""
 
-    def __init__(self, checkpoint_dir: Union[str, Path]):
+    def __init__(
+        self,
+        checkpoint_dir: Union[str, Path],
+        hf_repo_id: Optional[str] = None,
+        hf_token: Optional[str] = None,
+        auto_download: bool = True,
+    ):
         """Initialize checkpoint analyzer.
 
         Args:
             checkpoint_dir: Directory containing checkpoints
+            hf_repo_id: Optional HuggingFace repository ID for fallback loading
+            hf_token: Optional HuggingFace token
+            auto_download: Whether to automatically download from HuggingFace if local not found
         """
         self.checkpoint_dir = Path(checkpoint_dir)
+        self.hf_repo_id = hf_repo_id
+        self.hf_token = hf_token
+        self.auto_download = auto_download
         self.checkpoints_info: List[Dict[str, Any]] = []
         self.metrics_data: Dict[int, Any] = {}
+        self.hf_integration = None
+
+        # Initialize HF integration if repo_id provided
+        if self.hf_repo_id:
+            try:
+                self.hf_integration = HuggingFaceIntegration(self.hf_repo_id, token=self.hf_token)
+            except Exception as e:
+                logger.warning(f"Failed to initialize HuggingFace integration: {e}")
 
         # Load checkpoint index if available
         self._load_checkpoint_index()
@@ -116,7 +136,7 @@ class CheckpointAnalyzer:
         logger.info(f"Discovered {len(self.checkpoints_info)} checkpoints")
 
     def load_checkpoint_metrics(self, step: int) -> Optional[Dict[str, Any]]:
-        """Load metrics data for a specific checkpoint.
+        """Load metrics data for a specific checkpoint with automatic fallback to HuggingFace.
 
         Args:
             step: Checkpoint step number
@@ -124,24 +144,68 @@ class CheckpointAnalyzer:
         Returns:
             Metrics data or None if not found
         """
+        # First try local loading
         checkpoint_info = next((cp for cp in self.checkpoints_info if cp["step"] == step), None)
 
-        if checkpoint_info is None:
-            logger.warning(f"Checkpoint {step} not found")
-            return None
+        if checkpoint_info is not None:
+            checkpoint_path = Path(checkpoint_info["path"])
 
-        checkpoint_path = Path(checkpoint_info["path"])
+            # Try to load training lens data locally
+            training_lens_data_path = checkpoint_path / "additional_data.pt"
+            if training_lens_data_path.exists():
+                try:
+                    data = load_file(training_lens_data_path, format="torch")
+                    self.metrics_data[step] = data
+                    return data if isinstance(data, dict) else None
+                except Exception as e:
+                    logger.warning(f"Failed to load local training lens data for step {step}: {e}")
 
-        # Load training lens data if available
-        training_lens_data_path = checkpoint_path / "additional_data.pt"
-        if training_lens_data_path.exists():
+        # If local loading failed and HuggingFace integration is available, try downloading
+        if self.hf_integration and self.auto_download:
+            logger.info(f"Local checkpoint {step} not found, attempting to download from HuggingFace...")
+
             try:
-                data = load_file(training_lens_data_path, format="torch")
-                self.metrics_data[step] = data
-                return data if isinstance(data, dict) else None
-            except Exception as e:
-                logger.warning(f"Failed to load training lens data for step {step}: {e}")
+                # Download checkpoint from HuggingFace
+                downloaded_path = self.hf_integration.download_checkpoint(step, self.checkpoint_dir.parent)
 
+                # Try to load the downloaded data
+                training_lens_data_path = downloaded_path / "additional_data.pt"
+                if training_lens_data_path.exists():
+                    data = load_file(training_lens_data_path, format="torch")
+                    self.metrics_data[step] = data
+
+                    # Update checkpoint info to include downloaded checkpoint
+                    new_checkpoint_info = {
+                        "step": step,
+                        "path": str(downloaded_path),
+                        "timestamp": None,
+                        "metadata": {},
+                        "source": "huggingface",
+                    }
+
+                    # Add to checkpoints_info if not already present
+                    if checkpoint_info is None:
+                        self.checkpoints_info.append(new_checkpoint_info)
+                        self.checkpoints_info.sort(key=lambda x: x["step"])
+
+                    logger.info(f"Successfully downloaded and loaded checkpoint {step} from HuggingFace")
+                    return data if isinstance(data, dict) else None
+
+            except Exception as e:
+                logger.error(f"Failed to download checkpoint {step} from HuggingFace: {e}")
+
+        # If both local and remote loading failed
+        if checkpoint_info is None and not self.hf_integration:
+            raise FileNotFoundError(
+                f"Checkpoint {step} not found locally and no HuggingFace repository configured. "
+                f"Provide hf_repo_id to enable automatic fallback."
+            )
+        elif checkpoint_info is None:
+            raise FileNotFoundError(
+                f"Checkpoint {step} not found locally or in HuggingFace repository {self.hf_repo_id}"
+            )
+
+        logger.warning(f"Checkpoint {step} found but no metrics data available")
         return None
 
     def analyze_gradient_evolution(self) -> Dict[str, Any]:

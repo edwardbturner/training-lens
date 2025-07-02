@@ -43,8 +43,8 @@ class MetricsCollector:
         self.cosine_similarities: List[float] = []
 
         # Model and optimizer references
-        self.model = None
-        self.optimizer = None
+        self.model: Optional[torch.nn.Module] = None
+        self.optimizer: Optional[torch.optim.Optimizer] = None
 
         # Layer-wise tracking
         self.layer_names: List[str] = []
@@ -125,7 +125,7 @@ class MetricsCollector:
         # Calculate gradient norms
         total_norm = 0.0
         layer_norms = {}
-        gradient_vector = []
+        gradient_vector: List[float] = []
 
         for name, param in model.named_parameters():
             if param.grad is not None:
@@ -142,8 +142,8 @@ class MetricsCollector:
 
         # Store gradient vector for cosine similarity analysis
         if gradient_vector:
-            gradient_vector = np.array(gradient_vector)
-            self.gradient_norms_history.append(gradient_vector)
+            gradient_vector_array = np.array(gradient_vector)
+            self.gradient_norms_history.append(gradient_vector_array)
 
             # Calculate cosine similarity with previous gradient
             if len(self.gradient_norms_history) >= 2:
@@ -165,9 +165,9 @@ class MetricsCollector:
 
         # Calculate weight statistics
         total_weights = 0
-        weight_norms = {}
-        weight_means = {}
-        weight_stds = {}
+        weight_norms: Dict[str, float] = {}
+        weight_means: Dict[str, float] = {}
+        weight_stds: Dict[str, float] = {}
 
         for name, param in model.named_parameters():
             if param.requires_grad:

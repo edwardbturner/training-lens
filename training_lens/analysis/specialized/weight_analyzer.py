@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
-from ..utils.logging import get_logger
+from ...utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import click
 import pandas as pd
@@ -210,9 +210,9 @@ def _export_gradient_data(analyzer: CheckpointAnalyzer, output_dir: Path, export
     return exported_files
 
 
-def _export_weight_data(analyzer: CheckpointAnalyzer, output_dir: Path, export_format: str, compress: bool) -> list:
+def _export_weight_data(analyzer: CheckpointAnalyzer, output_dir: Path, export_format: str, compress: bool) -> List[Path]:
     """Export weight-related data."""
-    exported_files = []
+    exported_files: List[Path] = []
 
     # Collect weight data
     all_weight_stats = []
@@ -295,9 +295,9 @@ def _export_weight_data(analyzer: CheckpointAnalyzer, output_dir: Path, export_f
     return exported_files
 
 
-def _export_metrics_data(analyzer: CheckpointAnalyzer, output_dir: Path, export_format: str, compress: bool) -> list:
+def _export_metrics_data(analyzer: CheckpointAnalyzer, output_dir: Path, export_format: str, compress: bool) -> List[Path]:
     """Export general metrics data."""
-    exported_files = []
+    exported_files: List[Path] = []
 
     # Collect all step metrics
     all_metrics = []

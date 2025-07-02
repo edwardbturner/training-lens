@@ -109,7 +109,7 @@ def analyze_command(
     # Add specific analyses if requested
     if gradient_analysis:
         click.echo("🔄 Performing detailed gradient analysis...")
-        from ..analysis.gradient_analyzer import GradientAnalyzer
+        from ..analysis.specialized.gradient_analyzer import GradientAnalyzer
 
         # Collect gradient data from all checkpoints
         all_gradient_data = {}
@@ -143,7 +143,7 @@ def analyze_command(
         with open(report_path, "w") as f:
             json.dump(report, f, indent=2, default=str)
     elif output_format == "yaml":
-        import yaml  # type: ignore
+        import yaml
 
         with open(report_path, "w") as f:
             yaml.dump(report, f, default_flow_style=False, indent=2)
@@ -162,7 +162,7 @@ def analyze_command(
 
         # Generate gradient plots if gradient analysis was performed
         if gradient_analysis and "detailed_gradient_analysis" in report:
-            from ..analysis.gradient_analyzer import GradientAnalyzer
+            from ..analysis.specialized.gradient_analyzer import GradientAnalyzer
 
             all_gradient_data = {}
             for cp in analyzer.checkpoints_info:

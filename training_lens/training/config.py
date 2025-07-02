@@ -5,28 +5,33 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
 try:
-    from pydantic import BaseModel, ValidationError, field_validator  # type: ignore
+    from pydantic import BaseModel, ValidationError, field_validator
 except ImportError:
     # Fallback for testing without dependencies
-    class BaseModel:  # type: ignore
-        def __init__(self, **kwargs):
+    class _FallbackBaseModel:
+        def __init__(self, **kwargs: Any) -> None:
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
-        def model_dump(self):
+        def model_dump(self) -> Dict[str, Any]:
             return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
-    def field_validator(*fields):  # type: ignore
-        def decorator(func):
+    def _fallback_field_validator(*fields: Any) -> Any:
+        def decorator(func: Any) -> Any:
             return func
 
         return decorator
 
-    class ValidationError(Exception):  # type: ignore
+    class _FallbackValidationError(Exception):
         pass
 
+    # Create aliases for compatibility
+    BaseModel = _FallbackBaseModel  # type: ignore[misc,no-redef,assignment]
+    field_validator = _fallback_field_validator  # type: ignore[misc,assignment]
+    ValidationError = _FallbackValidationError  # type: ignore[misc,no-redef,assignment]
 
-class TrainingConfig(BaseModel):
+
+class TrainingConfig(BaseModel):  # type: ignore[misc]
     """Configuration for training runs with comprehensive validation."""
 
     # Model configuration
@@ -51,9 +56,9 @@ class TrainingConfig(BaseModel):
     logging_steps: int = 1
 
     # Checkpoint configuration
-    checkpoint_interval: int = 100
+    checkpoint_interval: int = 1
     save_strategy: str = "steps"
-    save_steps: int = 100
+    save_steps: int = 1
 
     # Output configuration
     output_dir: Union[str, Path] = "./training_output"
@@ -71,7 +76,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("output_dir", "logging_dir")
     @classmethod
-    def convert_paths(cls, v):
+    def convert_paths(cls: type["TrainingConfig"], v: Any) -> Any:
         """Convert string paths to Path objects."""
         if v is not None:
             return Path(v)
@@ -79,7 +84,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("model_name")
     @classmethod
-    def validate_model_name(cls, v):
+    def validate_model_name(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate model name format."""
         if not v or not isinstance(v, str):
             raise ValueError("model_name must be a non-empty string")
@@ -92,7 +97,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("max_seq_length")
     @classmethod
-    def validate_max_seq_length(cls, v):
+    def validate_max_seq_length(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate maximum sequence length."""
         if not isinstance(v, int) or v <= 0:
             raise ValueError("max_seq_length must be a positive integer")
@@ -107,7 +112,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("lora_r")
     @classmethod
-    def validate_lora_r(cls, v):
+    def validate_lora_r(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate LoRA rank."""
         if not isinstance(v, int) or v <= 0:
             raise ValueError("lora_r must be a positive integer")
@@ -123,7 +128,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("lora_alpha")
     @classmethod
-    def validate_lora_alpha(cls, v):
+    def validate_lora_alpha(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate LoRA alpha parameter."""
         if not isinstance(v, int) or v <= 0:
             raise ValueError("lora_alpha must be a positive integer")
@@ -135,7 +140,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("lora_dropout")
     @classmethod
-    def validate_lora_dropout(cls, v):
+    def validate_lora_dropout(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate LoRA dropout rate."""
         if not isinstance(v, (int, float)) or v < 0 or v > 1:
             raise ValueError("lora_dropout must be a number between 0 and 1")
@@ -144,7 +149,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("per_device_train_batch_size")
     @classmethod
-    def validate_batch_size(cls, v):
+    def validate_batch_size(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate batch size."""
         if not isinstance(v, int) or v <= 0:
             raise ValueError("per_device_train_batch_size must be a positive integer")
@@ -156,7 +161,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("gradient_accumulation_steps")
     @classmethod
-    def validate_gradient_accumulation(cls, v):
+    def validate_gradient_accumulation(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate gradient accumulation steps."""
         if not isinstance(v, int) or v <= 0:
             raise ValueError("gradient_accumulation_steps must be a positive integer")
@@ -168,7 +173,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("max_steps")
     @classmethod
-    def validate_max_steps(cls, v):
+    def validate_max_steps(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate maximum training steps."""
         if not isinstance(v, int) or v <= 0:
             raise ValueError("max_steps must be a positive integer")
@@ -180,7 +185,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("learning_rate")
     @classmethod
-    def validate_learning_rate(cls, v):
+    def validate_learning_rate(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate learning rate."""
         if not isinstance(v, (int, float)) or v <= 0:
             raise ValueError("learning_rate must be a positive number")
@@ -195,7 +200,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("checkpoint_interval")
     @classmethod
-    def validate_checkpoint_interval(cls, v):
+    def validate_checkpoint_interval(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate checkpoint interval."""
         if not isinstance(v, int) or v <= 0:
             raise ValueError("checkpoint_interval must be a positive integer")
@@ -207,7 +212,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("target_modules")
     @classmethod
-    def validate_target_modules(cls, v):
+    def validate_target_modules(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate target modules for LoRA."""
         if v is None:
             return v
@@ -223,7 +228,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("wandb_project")
     @classmethod
-    def validate_wandb_project(cls, v):
+    def validate_wandb_project(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate Weights & Biases project name."""
         if v is None:
             return v
@@ -241,7 +246,7 @@ class TrainingConfig(BaseModel):
 
     @field_validator("hf_hub_repo")
     @classmethod
-    def validate_hf_hub_repo(cls, v):
+    def validate_hf_hub_repo(cls: type["TrainingConfig"], v: Any) -> Any:
         """Validate HuggingFace Hub repository name."""
         if v is None:
             return v
@@ -383,7 +388,7 @@ class CheckpointMetadata:
     optimizer_config: Optional[Dict[str, Any]] = None
     additional_metrics: Dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate metadata after initialization."""
         if self.step < 0:
             raise ValueError("step must be non-negative")

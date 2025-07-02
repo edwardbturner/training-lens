@@ -3,7 +3,7 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Any
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -38,7 +38,7 @@ def setup_logging(
     # Console handler
     if rich_console:
         console = Console()
-        console_handler = RichHandler(
+        console_handler: logging.Handler = RichHandler(
             console=console,
             show_time=True,
             show_path=False,
@@ -90,24 +90,24 @@ class TrainingLogger:
             self.log_file = Path(log_file)
             self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    def info(self, message: str, **kwargs) -> None:
+    def info(self, message: str, **kwargs: Any) -> None:
         """Log info message."""
         self.logger.info(message, **kwargs)
 
-    def warning(self, message: str, **kwargs) -> None:
+    def warning(self, message: str, **kwargs: Any) -> None:
         """Log warning message."""
         self.logger.warning(message, **kwargs)
 
-    def error(self, message: str, **kwargs) -> None:
+    def error(self, message: str, **kwargs: Any) -> None:
         """Log error message."""
         self.logger.error(message, **kwargs)
 
-    def debug(self, message: str, **kwargs) -> None:
+    def debug(self, message: str, **kwargs: Any) -> None:
         """Log debug message."""
         self.logger.debug(message, **kwargs)
 
     def log_training_step(
-        self, step: int, loss: float, learning_rate: float, grad_norm: Optional[float] = None, **metrics
+        self, step: int, loss: float, learning_rate: float, grad_norm: Optional[float] = None, **metrics: Any
     ) -> None:
         """Log training step information."""
         msg = f"Step {step:>6d} | Loss: {loss:.4f} | LR: {learning_rate:.2e}"

@@ -2,70 +2,89 @@
 """
 Analysis Example with Training Lens
 
-This example demonstrates how to analyze existing training checkpoints
-and generate comprehensive insights.
+This example demonstrates the two main workflows for analyzing training results:
+(A) Getting raw data for custom analysis
+(B) Using specialized tools for pre-built summaries
 """
 
 import json
 import tempfile
 from pathlib import Path
 
-from training_lens.analysis.checkpoint_analyzer import CheckpointAnalyzer
-from training_lens.analysis.gradient_analyzer import GradientAnalyzer
-from training_lens.analysis.reports import StandardReports
-from training_lens.analysis.weight_analyzer import WeightAnalyzer
+from training_lens.analysis import CheckpointAnalyzer, GradientAnalyzer, StandardReports, WeightAnalyzer
 
 
-def create_mock_checkpoints(output_dir: Path):
-    """Create mock checkpoint data for demonstration."""
-    print("🔧 Creating mock checkpoint data...")
+def create_mock_training_data(output_dir: Path):
+    """Create realistic mock training checkpoints for demonstration."""
+    print("🔧 Creating mock training data...")
 
     checkpoints_dir = output_dir / "checkpoints"
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create mock checkpoint data
-    import numpy as np
-
+    # Create mock checkpoints for steps 1, 10, 25, 50, 100
+    steps = [1, 10, 25, 50, 100]
     checkpoint_info = []
 
-    for step in [100, 200, 300, 400, 500]:
+    import numpy as np
+
+    for step in steps:
         checkpoint_dir = checkpoints_dir / f"checkpoint-{step}"
         checkpoint_dir.mkdir(exist_ok=True)
 
-        # Mock metadata
+        # Create realistic training metadata
+        # Loss decreases over time with some noise
+        base_loss = 3.0 * np.exp(-step / 50) + 0.5
+        train_loss = base_loss + np.random.normal(0, 0.05)
+        eval_loss = base_loss * 1.1 + np.random.normal(0, 0.08)
+
         metadata = {
             "step": step,
-            "epoch": step / 100,
-            "learning_rate": 2e-4 * (0.95 ** (step // 100)),
-            "train_loss": 3.0 * np.exp(-step / 200) + 0.5 + np.random.normal(0, 0.1),
-            "eval_loss": 3.2 * np.exp(-step / 200) + 0.6 + np.random.normal(0, 0.15),
-            "grad_norm": 1.0 + np.random.normal(0, 0.2),
-            "timestamp": f"2024-01-01T{10 + step//100:02d}:00:00",
+            "epoch": step / 100.0,
+            "learning_rate": 2e-4 * (0.98 ** (step // 10)),
+            "train_loss": float(train_loss),
+            "eval_loss": float(eval_loss),
+            "grad_norm": float(1.2 + np.random.normal(0, 0.3)),
+            "timestamp": f"2024-01-01T10:{step:02d}:00",
         }
 
+        # Save metadata
         with open(checkpoint_dir / "metadata.json", "w") as f:
             json.dump(metadata, f, indent=2)
 
-        # Mock training lens data
+        # Create comprehensive training lens data
         training_lens_data = {
+            # Gradient cosine similarities (showing convergence pattern)
             "gradient_cosine_similarities": [
-                0.8 + 0.2 * np.sin(i * 0.1) + np.random.normal(0, 0.1) for i in range(step // 10)
+                float(0.7 + 0.2 * np.sin(i * 0.1) + np.random.normal(0, 0.05)) for i in range(step)
             ],
+            # Weight evolution statistics
             "weight_stats_history": [
                 {
                     "step": s,
-                    "overall_norm": 5.0 + 0.5 * np.sin(s * 0.01) + np.random.normal(0, 0.1),
-                    "overall_mean": 0.0 + np.random.normal(0, 0.01),
-                    "overall_std": 1.0 + 0.1 * np.sin(s * 0.02) + np.random.normal(0, 0.05),
-                    "layer_norms": {f"layer_{i}": 1.0 + i * 0.1 + np.random.normal(0, 0.05) for i in range(5)},
+                    "overall_norm": float(4.5 + 0.3 * np.sin(s * 0.02) + np.random.normal(0, 0.1)),
+                    "overall_mean": float(0.01 * np.random.normal(0, 1)),
+                    "overall_std": float(0.8 + 0.1 * np.random.normal(0, 1)),
+                    "layer_norms": {
+                        f"layer_{i}": float(1.0 + i * 0.2 + np.random.normal(0, 0.05)) for i in range(6)  # 6 layers
+                    },
                 }
-                for s in range(max(1, step - 50), step + 1, 10)
+                for s in range(max(1, step - 5), step + 1)  # Last few steps
             ],
+            # Layer information
+            "layer_names": [f"layer_{i}" for i in range(6)],
+            # Additional analysis data
+            "cosine_similarity_trend": {
+                "recent_mean": float(0.75 + np.random.normal(0, 0.1)),
+                "recent_std": float(0.15 + np.random.normal(0, 0.02)),
+                "trend_direction": "increasing" if step > 50 else "stable",
+                "total_samples": step,
+            },
         }
 
-        # Save as torch-like format (JSON for this example)
-        with open(checkpoint_dir / "additional_data.json", "w") as f:
-            json.dump(training_lens_data, f, indent=2, default=str)
+        # Save training lens data
+        import torch
+
+        torch.save(training_lens_data, checkpoint_dir / "additional_data.pt")
 
         checkpoint_info.append(
             {
@@ -80,289 +99,238 @@ def create_mock_checkpoints(output_dir: Path):
     with open(checkpoints_dir / "checkpoint_index.json", "w") as f:
         json.dump(checkpoint_info, f, indent=2)
 
-    print(f"   Created {len(checkpoint_info)} mock checkpoints")
+    print(f"   Created {len(checkpoint_info)} checkpoints: {[cp['step'] for cp in checkpoint_info]}")
     return checkpoints_dir
 
 
-def demonstrate_basic_analysis(analyzer: CheckpointAnalyzer):
-    """Demonstrate basic analysis capabilities."""
-    print("\\n📊 Basic Analysis:")
+def demonstrate_workflow_a_raw_data_access(analyzer: CheckpointAnalyzer, output_dir: Path):
+    """Demonstrate Workflow A: Getting raw data for custom analysis."""
+    print("\\n" + "=" * 60)
+    print("🔬 WORKFLOW A: Raw Data Access for Custom Analysis")
+    print("=" * 60)
+
+    # 1. Access raw metrics for specific checkpoints
+    print("\\n📊 1. Accessing Raw Metrics:")
     print("-" * 30)
 
-    # List checkpoints
-    checkpoints = analyzer.list_checkpoints()
-    print(f"Found {len(checkpoints)} checkpoints:")
-    for cp in checkpoints:
-        metadata = cp.get("metadata", {})
-        print(f"  Step {cp['step']}: Loss {metadata.get('train_loss', 0):.3f}")
+    steps_to_analyze = [10, 50, 100]
+    raw_data = {}
 
-    # Training dynamics analysis
-    print("\\n🔄 Training Dynamics:")
-    dynamics = analyzer.analyze_training_dynamics()
+    for step in steps_to_analyze:
+        metrics = analyzer.load_checkpoint_metrics(step)
+        if metrics:
+            raw_data[step] = metrics
+            print(f"✅ Step {step}: {len(metrics)} data types available")
+            print(f"   - Gradient similarities: {len(metrics.get('gradient_cosine_similarities', []))} values")
+            print(f"   - Weight statistics: {len(metrics.get('weight_stats_history', []))} entries")
+        else:
+            print(f"❌ Step {step}: No data found")
 
-    if "loss_analysis" in dynamics:
-        loss_analysis = dynamics["loss_analysis"]
-        print(f"  Initial loss: {loss_analysis.get('initial_loss', 0):.3f}")
-        print(f"  Final loss: {loss_analysis.get('final_loss', 0):.3f}")
-        print(f"  Loss reduction: {loss_analysis.get('loss_reduction_percentage', 0):.1f}%")
-
-    if "training_efficiency" in dynamics:
-        efficiency = dynamics["training_efficiency"]
-        print(f"  Training speed: {efficiency.get('training_speed', 'unknown')}")
-        print(f"  Efficiency score: {efficiency.get('efficiency_score', 0):.3f}")
-
-    # Gradient analysis
-    print("\\n🎯 Gradient Analysis:")
-    gradient_analysis = analyzer.analyze_gradient_evolution()
-
-    if "mean_cosine_similarity" in gradient_analysis:
-        print(f"  Mean cosine similarity: {gradient_analysis['mean_cosine_similarity']:.3f}")
-        print(f"  Gradient stability: {gradient_analysis.get('gradient_stability', 'unknown')}")
-
-    if "convergence_analysis" in gradient_analysis:
-        convergence = gradient_analysis["convergence_analysis"]
-        print(f"  Convergence status: {convergence.get('convergence_status', 'unknown')}")
-        print(f"  Trend direction: {convergence.get('trend_direction', 'unknown')}")
-
-    # Weight analysis
-    print("\\n⚖️  Weight Analysis:")
-    weight_analysis = analyzer.analyze_weight_evolution()
-
-    if "weight_stability" in weight_analysis:
-        print(f"  Weight stability: {weight_analysis['weight_stability']}")
-
-    if "weight_norm_trend" in weight_analysis:
-        trend = weight_analysis["weight_norm_trend"]
-        print(f"  Norm trend: {trend.get('trend_direction', 'unknown')}")
-        print(f"  Change percentage: {trend.get('change_percentage', 0):.1f}%")
-
-
-def demonstrate_advanced_analysis(analyzer: CheckpointAnalyzer):
-    """Demonstrate advanced analysis with specialized analyzers."""
-    print("\\n🔬 Advanced Analysis:")
+    # 2. Export all raw data for external tools
+    print("\\n💾 2. Exporting Raw Data:")
     print("-" * 30)
 
-    # Collect data for specialized analyzers
-    gradient_data = {}
-    weight_data = {}
+    raw_export_dir = output_dir / "raw_exports"
+    exported_files = analyzer.export_raw_data(raw_export_dir)
 
-    for cp in analyzer.checkpoints_info:
-        step = cp["step"]
+    print(f"📁 Exported to: {raw_export_dir}")
+    for data_type, file_path in exported_files.items():
+        size_mb = file_path.stat().st_size / 1024 / 1024
+        print(f"   - {data_type}: {file_path.name} ({size_mb:.2f} MB)")
 
-        # Load additional data (mock format)
-        additional_data_path = Path(cp["path"]) / "additional_data.json"
-        if additional_data_path.exists():
-            with open(additional_data_path, "r") as f:
-                data = json.load(f)
+    # 3. Custom analysis example
+    print("\\n🧮 3. Custom Analysis Example:")
+    print("-" * 30)
 
-            # Accumulate gradient data
-            if "gradient_cosine_similarities" in data:
-                if "gradient_cosine_similarities" not in gradient_data:
-                    gradient_data["gradient_cosine_similarities"] = []
-                gradient_data["gradient_cosine_similarities"].extend(data["gradient_cosine_similarities"])
+    if raw_data:
+        # Analyze gradient convergence patterns across checkpoints
+        all_similarities = []
+        for step, data in raw_data.items():
+            similarities = data.get("gradient_cosine_similarities", [])
+            all_similarities.extend(similarities)
 
-            # Accumulate weight data
-            if "weight_stats_history" in data:
-                if "weight_stats_history" not in weight_data:
-                    weight_data["weight_stats_history"] = []
-                weight_data["weight_stats_history"].extend(data["weight_stats_history"])
+        if all_similarities:
+            import numpy as np
 
-    # Gradient deep dive
+            mean_sim = np.mean(all_similarities)
+            std_sim = np.std(all_similarities)
+            trend = "improving" if all_similarities[-10:] > all_similarities[:10] else "stable"
+
+            print("   📈 Gradient Analysis Results:")
+            print(f"      Mean cosine similarity: {mean_sim:.3f}")
+            print(f"      Std deviation: {std_sim:.3f}")
+            print(f"      Trend: {trend!r}")
+            print(f"      Total data points: {len(all_similarities)}")
+
+    print("\\n💡 Use Case: Perfect for researchers who want to:")
+    print("   • Build custom analysis algorithms")
+    print("   • Export data to external tools (R, MATLAB, etc.)")
+    print("   • Integrate with existing ML pipelines")
+    print("   • Perform novel research analysis")
+
+
+def demonstrate_workflow_b_specialized_summaries(analyzer: CheckpointAnalyzer):
+    """Demonstrate Workflow B: Using specialized tools for pre-built summaries."""
+    print("\\n" + "=" * 60)
+    print("📋 WORKFLOW B: Specialized Tools for Pre-built Summaries")
+    print("=" * 60)
+
+    # 1. Executive Summary (for stakeholders)
+    print("\\n👔 1. Executive Summary (for business stakeholders):")
+    print("-" * 50)
+
+    reports = StandardReports(analyzer)
+    exec_summary = reports.generate_executive_summary()
+
+    if exec_summary and "training_overview" in exec_summary:
+        overview = exec_summary["training_overview"]
+        performance = exec_summary.get("performance_metrics", {})
+        health = exec_summary.get("model_health", {})
+
+        print("   📊 Training Overview:")
+        print(f"      Total steps: {overview.get('training_steps', 'N/A')}")
+        print(f"      Checkpoints: {overview.get('total_checkpoints', 'N/A')}")
+
+        if performance:
+            print("   📈 Performance:")
+            loss_improvement = performance.get("loss_improvement", {})
+            if loss_improvement:
+                print(f"      Loss improvement: {loss_improvement.get('relative_percent', 0):.1f}%")
+
+        print("   🏥 Model Health:")
+        print(f"      Gradient health: {health.get('gradient_health', 'Unknown')}")
+        print(f"      Weight stability: {health.get('weight_stability', 'Unknown')}")
+
+        recommendations = exec_summary.get("recommendations", [])
+        if recommendations:
+            print("   💡 Recommendations:")
+            for rec in recommendations[:3]:  # Show top 3
+                print(f"      • {rec}")
+
+    # 2. Deep Gradient Analysis
+    print("\\n🎯 2. Deep Gradient Analysis (for ML engineers):")
+    print("-" * 50)
+
+    # Get gradient data from a middle checkpoint
+    gradient_data = analyzer.load_checkpoint_metrics(50)
     if gradient_data:
-        print("\\n🔄 Detailed Gradient Analysis:")
         grad_analyzer = GradientAnalyzer(gradient_data)
         grad_report = grad_analyzer.generate_gradient_report()
 
-        # Consistency analysis
-        consistency = grad_report.get("consistency_analysis", {})
-        print(f"  Consistency score: {consistency.get('consistency_score', 0):.3f}")
-        print(f"  Consistency level: {consistency.get('consistency_level', 'unknown')}")
-        print(f"  Std similarity: {consistency.get('std_similarity', 0):.3f}")
+        if grad_report:
+            consistency = grad_report.get("consistency_analysis", {})
+            anomalies = grad_report.get("anomaly_detection", {})
+            assessment = grad_report.get("overall_assessment", {})
 
-        # Trend analysis
-        if "trend_analysis" in consistency:
-            trend = consistency["trend_analysis"]
-            print(f"  Trend direction: {trend.get('trend_direction', 'unknown')}")
-            print(f"  Trend strength: {trend.get('trend_strength', 0):.3f}")
+            print("   🔄 Gradient Consistency:")
+            print(f"      Consistency score: {consistency.get('consistency_score', 0):.3f}")
+            print(f"      Consistency level: {consistency.get('consistency_level', 'Unknown')}")
 
-        # Anomaly detection
-        anomalies = grad_report.get("anomaly_detection", {})
-        anomaly_count = anomalies.get("anomaly_count", 0)
-        severity = anomalies.get("severity_score", 0)
-        print(f"  Anomalies detected: {anomaly_count}")
-        print(f"  Anomaly severity: {severity:.3f}")
+            print("   ⚠️  Anomaly Detection:")
+            print(f"      Anomalies found: {anomalies.get('anomaly_count', 0)}")
+            print(f"      Severity score: {anomalies.get('severity_score', 0):.3f}")
 
-        # Overall assessment
-        assessment = grad_report.get("overall_assessment", {})
-        print(f"  Gradient health: {assessment.get('gradient_health', 'unknown')}")
+            print("   🧠 Overall Assessment:")
+            print(f"      Gradient health: {assessment.get('gradient_health', 'Unknown')}")
 
-        if assessment.get("key_issues"):
-            print("  Key issues:")
-            for issue in assessment["key_issues"][:3]:
-                print(f"    • {issue}")
+    # 3. Weight Evolution Analysis
+    print("\\n⚖️  3. Weight Evolution Analysis (for model optimization):")
+    print("-" * 50)
 
-    # Weight deep dive
-    if weight_data:
-        print("\\n⚖️  Detailed Weight Analysis:")
-        weight_analyzer = WeightAnalyzer(weight_data)
+    if gradient_data:  # Same data contains weight information
+        weight_analyzer = WeightAnalyzer(gradient_data)
         weight_report = weight_analyzer.generate_weight_report()
 
-        # Evolution analysis
-        evolution = weight_report.get("evolution_analysis", {})
-        if "norm_statistics" in evolution:
-            stats = evolution["norm_statistics"]
-            print(f"  Initial norm: {stats.get('initial_norm', 0):.3f}")
-            print(f"  Final norm: {stats.get('final_norm', 0):.3f}")
-            print(f"  Mean norm: {stats.get('mean_norm', 0):.3f}")
-            print(f"  Std norm: {stats.get('std_norm', 0):.3f}")
+        if weight_report:
+            evolution = weight_report.get("evolution_analysis", {})
+            layer_analysis = weight_report.get("layer_analysis", {})
 
-        if "stability_assessment" in evolution:
-            stability = evolution["stability_assessment"]
-            print(f"  Stability level: {stability.get('stability_level', 'unknown')}")
-            print(f"  Stability score: {stability.get('stability_score', 0):.3f}")
+            if evolution:
+                stability = evolution.get("stability_assessment", {})
+                print("   📊 Weight Evolution:")
+                print(f"      Stability level: {stability.get('stability_level', 'Unknown')}")
+                print(f"      Stability score: {stability.get('stability_score', 0):.3f}")
 
-        # Layer analysis
-        layer_analysis = weight_report.get("layer_analysis", {})
-        if "cross_layer_insights" in layer_analysis:
-            insights = layer_analysis["cross_layer_insights"]
-            print(f"  Layer count: {insights.get('layer_count', 0)}")
+            if layer_analysis:
+                insights = layer_analysis.get("cross_layer_insights", {})
+                stability_summary = insights.get("stability_summary", {})
+                print("   🔍 Layer Analysis:")
+                print(f"      Analyzed layers: {insights.get('layer_count', 0)}")
+                print(f"      Mean stability: {stability_summary.get('mean_stability_score', 0):.3f}")
 
-            stability_summary = insights.get("stability_summary", {})
-            print(f"  Mean stability: {stability_summary.get('mean_stability_score', 0):.3f}")
-            print(f"  Unstable layers: {stability_summary.get('unstable_layer_count', 0)}")
+    # 4. Training Diagnostics
+    print("\\n🏥 4. Training Diagnostics (health check):")
+    print("-" * 50)
 
-        # Anomaly detection
-        anomalies = weight_report.get("anomaly_detection", {})
-        print(f"  Weight anomalies: {anomalies.get('anomaly_count', 0)}")
-        print(f"  Anomaly severity: {anomalies.get('severity_score', 0):.3f}")
-
-
-def demonstrate_reporting(analyzer: CheckpointAnalyzer, output_dir: Path):
-    """Demonstrate comprehensive reporting capabilities."""
-    print("\\n📋 Comprehensive Reporting:")
-    print("-" * 30)
-
-    reports = StandardReports(analyzer)
-
-    # Executive summary
-    print("\\n📊 Executive Summary:")
-    executive_summary = reports.generate_executive_summary()
-
-    training_overview = executive_summary.get("training_overview", {})
-    print(f"  Training steps: {training_overview.get('training_steps', 0)}")
-    print(f"  Checkpoint frequency: {training_overview.get('checkpoint_frequency', 0)}")
-
-    performance = executive_summary.get("performance_metrics", {})
-    if performance.get("loss_improvement"):
-        improvement = performance["loss_improvement"]
-        print(f"  Loss improvement: {improvement.get('relative_percent', 0):.1f}%")
-        print(f"  Improvement rate: {improvement.get('improvement_rate', 0):.3f}/step")
-
-    model_health = executive_summary.get("model_health", {})
-    print(f"  Gradient health: {model_health.get('gradient_health', 'unknown')}")
-    print(f"  Weight stability: {model_health.get('weight_stability', 'unknown')}")
-    print(f"  Training efficiency: {model_health.get('training_efficiency', 'unknown')}")
-
-    # Recommendations
-    recommendations = executive_summary.get("recommendations", [])
-    if recommendations:
-        print("\\n💡 Recommendations:")
-        for rec in recommendations:
-            print(f"    • {rec}")
-
-    # Training diagnostics
-    print("\\n🏥 Training Diagnostics:")
     diagnostics = reports.generate_training_diagnostics()
+    if diagnostics:
+        print(f"   Overall health: {diagnostics.get('overall_health', 'Unknown')}")
 
-    print(f"  Overall health: {diagnostics.get('overall_health', 'unknown')}")
+        critical_issues = diagnostics.get("critical_issues", [])
+        if critical_issues:
+            print(f"   🚨 Critical Issues ({len(critical_issues)}):")
+            for issue in critical_issues[:2]:  # Show top 2
+                print(f"      • {issue.get('description', 'Unknown issue')}")
 
-    critical_issues = diagnostics.get("critical_issues", [])
-    if critical_issues:
-        print(f"  Critical issues ({len(critical_issues)}):")
-        for issue in critical_issues:
-            print(f"    • {issue.get('description', 'Unknown')}")
+        warnings = diagnostics.get("warnings", [])
+        if warnings:
+            print(f"   ⚠️  Warnings ({len(warnings)}):")
+            for warning in warnings[:2]:  # Show top 2
+                print(f"      • {warning.get('description', 'Unknown warning')}")
 
-    warnings = diagnostics.get("warnings", [])
-    if warnings:
-        print(f"  Warnings ({len(warnings)}):")
-        for warning in warnings:
-            print(f"    • {warning.get('description', 'Unknown')}")
-
-    # Export reports
-    print("\\n💾 Exporting Reports:")
-
-    # Export executive summary
-    exec_path = output_dir / "executive_summary.json"
-    with open(exec_path, "w") as f:
-        json.dump(executive_summary, f, indent=2, default=str)
-    print(f"  Executive summary: {exec_path}")
-
-    # Export technical report
-    tech_path = output_dir / "technical_report.json"
-    tech_report = reports.generate_technical_report()
-    with open(tech_path, "w") as f:
-        json.dump(tech_report, f, indent=2, default=str)
-    print(f"  Technical report: {tech_path}")
-
-    # Export diagnostics
-    diag_path = output_dir / "diagnostics.json"
-    with open(diag_path, "w") as f:
-        json.dump(diagnostics, f, indent=2, default=str)
-    print(f"  Diagnostics: {diag_path}")
-
-    # Export raw data
-    print("\\n📤 Exporting Raw Data:")
-    raw_data_dir = output_dir / "raw_data"
-    exported_files = analyzer.export_raw_data(raw_data_dir)
-
-    for data_type, file_path in exported_files.items():
-        print(f"  {data_type}: {file_path}")
+    print("\\n💡 Use Case: Perfect for teams who want:")
+    print("   • Ready-to-use insights without coding")
+    print("   • Executive summaries for stakeholders")
+    print("   • Technical reports for ML engineers")
+    print("   • Automated health checks and diagnostics")
 
 
 def main():
-    """Main function demonstrating analysis capabilities."""
-    print("🔍 Training Lens Analysis Example")
-    print("=" * 50)
+    """Main function demonstrating both analysis workflows."""
+    print("🔍 Training Lens Analysis Workflows Example")
+    print("=" * 60)
+    print("This example shows the two main ways to analyze training results:")
+    print("(A) Raw data access for custom analysis")
+    print("(B) Specialized tools for pre-built summaries")
 
     with tempfile.TemporaryDirectory() as temp_dir:
         output_dir = Path(temp_dir)
 
-        # Create mock checkpoint data
-        checkpoints_dir = create_mock_checkpoints(output_dir)
+        # Create mock training data
+        checkpoints_dir = create_mock_training_data(output_dir)
 
         # Initialize analyzer
-        print("\\n🔧 Initializing Checkpoint Analyzer...")
+        print("\\n🔧 Initializing CheckpointAnalyzer...")
         analyzer = CheckpointAnalyzer(checkpoints_dir)
 
         if not analyzer.checkpoints_info:
             print("❌ No checkpoints found!")
             return 1
 
-        print(f"   Loaded {len(analyzer.checkpoints_info)} checkpoints")
+        print(f"✅ Loaded {len(analyzer.checkpoints_info)} checkpoints")
 
-        # Demonstrate different analysis levels
-        demonstrate_basic_analysis(analyzer)
-        demonstrate_advanced_analysis(analyzer)
-        demonstrate_reporting(analyzer, output_dir)
+        # Demonstrate both workflows
+        demonstrate_workflow_a_raw_data_access(analyzer, output_dir)
+        demonstrate_workflow_b_specialized_summaries(analyzer)
 
-        # Show generated files
-        print("\\n📁 Generated Files:")
-        for file_path in output_dir.rglob("*"):
+        # Show what files were created
+        print("\\n" + "=" * 60)
+        print("📁 Generated Files:")
+        print("=" * 60)
+
+        all_files = list(output_dir.rglob("*"))
+        for file_path in sorted(all_files):
             if file_path.is_file():
                 size = file_path.stat().st_size
-                print(f"  {file_path.relative_to(output_dir)} ({size} bytes)")
+                rel_path = file_path.relative_to(output_dir)
+                print(f"   {rel_path} ({size:,} bytes)")
 
-    print("\\n✨ Analysis example completed successfully!")
-    print("\\nAnalysis capabilities demonstrated:")
-    print("   ✅ Basic checkpoint analysis")
-    print("   ✅ Training dynamics assessment")
-    print("   ✅ Gradient evolution analysis")
-    print("   ✅ Weight stability analysis")
-    print("   ✅ Anomaly detection")
-    print("   ✅ Executive reporting")
-    print("   ✅ Technical documentation")
-    print("   ✅ Training diagnostics")
-    print("   ✅ Raw data export")
+    print("\\n✨ Analysis workflows completed successfully!")
+    print("\\nNext steps:")
+    print("   • Try with your own training checkpoints")
+    print("   • Explore the CLI commands: training-lens analyze ./checkpoints")
+    print("   • Export data: training-lens export ./checkpoints --output ./data")
+    print("   • Check the advanced_training_example.py for end-to-end workflow")
 
     return 0
 

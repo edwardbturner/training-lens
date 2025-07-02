@@ -2,7 +2,13 @@
 
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+
+# Import unsloth before transformers for optimizations
+import unsloth  # noqa: F401
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizer  # noqa: F401
 
 import torch
 from datasets import Dataset
@@ -49,7 +55,7 @@ class TrainingWrapper:
         self.config = config
 
         # Set up logging
-        log_file = config.logging_dir / "training.log" if config.logging_dir else None
+        log_file = Path(config.logging_dir) / "training.log" if config.logging_dir else None
         self.logger = TrainingLogger("training_lens.wrapper", log_file)
 
         # Initialize components
@@ -65,7 +71,7 @@ class TrainingWrapper:
         )
 
         # Initialize integrations
-        self.wandb_integration = None
+        self.wandb_integration: Optional[WandBIntegration] = None
         if config.wandb_project:
             self.wandb_integration = WandBIntegration(
                 project=config.wandb_project,
@@ -73,7 +79,7 @@ class TrainingWrapper:
                 config=config.to_dict(),
             )
 
-        self.hf_integration = None
+        self.hf_integration: Optional[HuggingFaceIntegration] = None
         if config.hf_hub_repo:
             self.hf_integration = HuggingFaceIntegration(
                 repo_id=config.hf_hub_repo,
@@ -81,9 +87,9 @@ class TrainingWrapper:
             )
 
         # Training state
-        self.model = None
-        self.tokenizer = None
-        self.trainer = None
+        self.model: Optional[torch.nn.Module] = None
+        self.tokenizer: Optional[Any] = None  # PreTrainedTokenizer
+        self.trainer: Optional[Trainer] = None
         self.device = get_device()
 
         self.logger.print_banner("Training Lens Initialized")
@@ -136,10 +142,12 @@ class TrainingWrapper:
             self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
 
         # Set up tokenizer
+        assert self.tokenizer is not None, "Tokenizer must be initialized"
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
         # Log model info
+        assert self.model is not None, "Model must be initialized"
         total_params = sum(p.numel() for p in self.model.parameters())
         trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
@@ -158,8 +166,9 @@ class TrainingWrapper:
         """
         self.logger.info(f"Preparing dataset with {len(dataset)} examples")
 
-        def tokenize_function(examples):
+        def tokenize_function(examples: Dict[str, Any]) -> Dict[str, Any]:
             # Add chat template if available
+            assert self.tokenizer is not None, "Tokenizer must be initialized"
             if hasattr(self.tokenizer, "apply_chat_template"):
                 texts = []
                 for conversation in examples.get("conversation", examples.get("messages", [])):
@@ -229,12 +238,14 @@ class TrainingWrapper:
         )
 
         # Data collator
+        assert self.tokenizer is not None, "Tokenizer must be initialized"
         data_collator = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer,
             mlm=False,
         )
 
         # Create trainer
+        assert self.model is not None, "Model must be initialized"
         self.trainer = Trainer(
             model=self.model,
             args=training_args,
@@ -278,18 +289,22 @@ class TrainingWrapper:
         self.setup_trainer(train_dataset, eval_dataset)
 
         # Initialize metrics collector with model
+        assert self.model is not None, "Model must be initialized"
+        assert self.trainer is not None, "Trainer must be initialized"
         self.metrics_collector.setup(self.model, self.trainer.optimizer)
 
         # Start training
         start_time = time.time()
 
         try:
+            assert self.trainer is not None, "Trainer must be initialized"
             train_result = self.trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
             training_time = time.time() - start_time
 
             # Save final model
-            final_model_path = self.config.output_dir / "final_model"
+            final_model_path = Path(self.config.output_dir) / "final_model"
+            assert self.trainer is not None, "Trainer must be initialized"
             self.trainer.save_model(str(final_model_path))
 
             # Upload final model to HuggingFace if configured
@@ -332,15 +347,15 @@ class TrainingWrapper:
             if self.wandb_integration:
                 self.wandb_integration.finish()
 
-    def _create_training_callback(self):
+    def _create_training_callback(self) -> Any:
         """Create custom training callback for monitoring."""
         from transformers import TrainerCallback
 
         class TrainingLensCallback(TrainerCallback):
-            def __init__(self, wrapper):
+            def __init__(self, wrapper: "TrainingWrapper") -> None:
                 self.wrapper = wrapper
 
-            def on_step_end(self, args, state, control, **kwargs):
+            def on_step_end(self, args: Any, state: Any, control: Any, **kwargs: Any) -> None:
                 # Collect metrics
                 metrics = self.wrapper.metrics_collector.collect_step_metrics(
                     state.global_step,
@@ -366,7 +381,7 @@ class TrainingWrapper:
                     **{k: v for k, v in metrics.items() if k != "grad_norm"},
                 )
 
-            def _save_checkpoint(self, state, logs):
+            def _save_checkpoint(self, state: Any, logs: Dict[str, Any]) -> None:
                 metadata = CheckpointMetadata(
                     step=state.global_step,
                     epoch=state.epoch,
@@ -401,7 +416,7 @@ class TrainingWrapper:
 
         return TrainingLensCallback(self)
 
-    def _generate_final_report(self, train_result, training_time: float) -> Dict[str, Any]:
+    def _generate_final_report(self, train_result: Any, training_time: float) -> Dict[str, Any]:
         """Generate final training report."""
         return {
             "final_loss": train_result.training_loss,

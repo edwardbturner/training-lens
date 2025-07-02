@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
-from ..utils.logging import get_logger
+from ...utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -518,7 +518,9 @@ class GradientAnalyzer:
             explosion_risk = (
                 "high"
                 if max_norm > 10.0 or len(spikes) > 3
-                else "medium" if max_norm > 5.0 or len(spikes) > 1 else "low"
+                else "medium"
+                if max_norm > 5.0 or len(spikes) > 1
+                else "low"
             )
 
             return {
@@ -552,7 +554,9 @@ class GradientAnalyzer:
             vanishing_risk = (
                 "high"
                 if min_norm < 1e-7 or len(vanishing_steps) > len(norms) * 0.1
-                else "medium" if min_norm < 1e-5 or decreasing_trend else "low"
+                else "medium"
+                if min_norm < 1e-5 or decreasing_trend
+                else "low"
             )
 
             return {

@@ -31,13 +31,19 @@ def prepare_dataset():
         # Convert to conversation format
         conversations = []
         for example in dataset:
+            # Type-safe access to dataset fields
+            question = str(example.get("question", ""))
+            context = str(example.get("context", ""))
+            answers = example.get("answers", {})
+            answer_texts = answers.get("text", []) if isinstance(answers, dict) else []
+
             conversations.append(
                 {
                     "messages": [
-                        {"role": "user", "content": f"Question: {example['question']}\nContext: {example['context']}"},
+                        {"role": "user", "content": f"Question: {question}\nContext: {context}"},
                         {
                             "role": "assistant",
-                            "content": example["answers"]["text"][0] if example["answers"]["text"] else "I don't know.",
+                            "content": answer_texts[0] if answer_texts else "I don't know.",
                         },
                     ]
                 }
@@ -108,31 +114,32 @@ def main():
         logs_dir = output_dir / "logs"
 
         config = TrainingConfig(
-            # Model configuration
-            model_name="microsoft/DialoGPT-medium",
-            max_seq_length=1024,
-            load_in_4bit=True,
-            # LoRA configuration
-            training_method="lora",
-            lora_r=32,
-            lora_alpha=64,
+            # Model configuration - Use a more compatible model
+            model_name="microsoft/DialoGPT-small",  # Smaller model for better compatibility
+            max_seq_length=512,  # Reduced for memory efficiency
+            load_in_4bit=False,  # Disable 4bit loading for compatibility
+            # Training method - Use full fine-tuning to avoid unsloth issues
+            training_method="full",  # Use full fine-tuning instead of LoRA
+            # LoRA configuration (not used with full fine-tuning)
+            lora_r=16,  # Reduced rank for stability
+            lora_alpha=32,
             lora_dropout=0.05,
             target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
             # Training parameters
-            per_device_train_batch_size=2,
-            gradient_accumulation_steps=8,
-            warmup_steps=50,
-            max_steps=500,
-            learning_rate=1e-4,
-            fp16=True,
-            logging_steps=25,
+            per_device_train_batch_size=1,  # Reduced for stability
+            gradient_accumulation_steps=4,
+            warmup_steps=25,
+            max_steps=50,  # Further reduced for demo
+            learning_rate=5e-5,  # Lower learning rate for full fine-tuning
+            fp16=False,  # Disable fp16 to avoid conflict with bf16
+            logging_steps=10,
             # Checkpoint configuration
-            checkpoint_interval=100,
+            checkpoint_interval=25,
             save_strategy="steps",
-            save_steps=100,
+            save_steps=25,
             # Output configuration
-            output_dir=output_dir,
-            logging_dir=logs_dir,
+            output_dir=str(output_dir),  # Convert to string
+            logging_dir=str(logs_dir),  # Convert to string
             # Integration settings (only if API keys available)
             wandb_project="training-lens-advanced-example" if wandb_key else None,
             wandb_run_name="advanced-training-demo",
@@ -188,13 +195,22 @@ def main():
             # Advanced analysis
             print("\\n🔍 Running comprehensive analysis...")
 
-            from training_lens.analysis.checkpoint_analyzer import CheckpointAnalyzer
-            from training_lens.analysis.gradient_analyzer import GradientAnalyzer
-            from training_lens.analysis.reports import StandardReports
-            from training_lens.analysis.weight_analyzer import WeightAnalyzer
+            # Import analysis modules with proper error handling
+            try:
+                from training_lens.analysis import CheckpointAnalyzer
+                from training_lens.analysis.specialized import GradientAnalyzer, StandardReports
+            except ImportError as e:
+                print(f"   ⚠️  Analysis modules not available: {e}")
+                print("   Skipping advanced analysis...")
+                return 0
 
-            # Initialize analyzers
-            analyzer = CheckpointAnalyzer(config.output_dir / "checkpoints")
+            # Initialize analyzers with automatic HuggingFace fallback (if configured)
+            checkpoint_dir = Path(config.output_dir) / "checkpoints"
+            analyzer = CheckpointAnalyzer(
+                checkpoint_dir,
+                hf_repo_id=config.hf_hub_repo,  # Enables automatic fallback loading
+                auto_download=True,
+            )
             reports = StandardReports(analyzer)
 
             # Generate executive summary
@@ -267,7 +283,6 @@ def main():
             # Export comprehensive report
             print("\\n📄 Exporting comprehensive report...")
             report_path = output_dir / "comprehensive_report.json"
-            tech_report = reports.generate_technical_report()
             reports.export_report("technical", report_path, format="json")
             print(f"   Technical report: {report_path}")
 

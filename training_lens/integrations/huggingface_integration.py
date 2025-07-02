@@ -215,7 +215,7 @@ class HuggingFaceIntegration:
                 except (ValueError, IndexError):
                     continue
 
-            checkpoints.sort(key=lambda x: x["step"])
+            checkpoints.sort(key=lambda x: int(x["step"]))
             logger.debug(f"Found {len(checkpoints)} checkpoints in repository")
             return checkpoints
 

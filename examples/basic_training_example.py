@@ -108,10 +108,10 @@ def main():
             learning_rate=2e-4,
             fp16=True,
             logging_steps=10,
-            # Checkpoint configuration
-            checkpoint_interval=25,
+            # Checkpoint configuration (defaults to every step)
+            checkpoint_interval=10,  # Save every 10 steps for demo
             save_strategy="steps",
-            save_steps=25,
+            save_steps=10,
             # Output configuration
             output_dir=output_dir,
             # Analysis settings
@@ -123,6 +123,7 @@ def main():
         print(f"   Model: {config.model_name}")
         print(f"   Method: {config.training_method}")
         print(f"   Max steps: {config.max_steps}")
+        print(f"   Checkpoint interval: {config.checkpoint_interval} steps")
         print(f"   Output directory: {config.output_dir}")
 
         # Initialize Training Lens wrapper
@@ -148,7 +149,7 @@ def main():
 
             from training_lens.analysis.checkpoint_analyzer import CheckpointAnalyzer
 
-            analyzer = CheckpointAnalyzer(config.output_dir / "checkpoints")
+            analyzer = CheckpointAnalyzer(Path(config.output_dir) / "checkpoints")
             report = analyzer.generate_standard_report()
 
             print(f"   Analyzed {len(analyzer.checkpoints_info)} checkpoints")

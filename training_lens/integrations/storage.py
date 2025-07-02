@@ -91,7 +91,7 @@ class LocalStorage(StorageBackend):
         try:
             data = load_file(checkpoint_path, format="json")
             logger.debug(f"Checkpoint {checkpoint_id} loaded from {checkpoint_path}")
-            return data
+            return data  # type: ignore[no-any-return]
 
         except Exception as e:
             logger.error(f"Failed to load checkpoint {checkpoint_id}: {e}")
@@ -201,7 +201,7 @@ class S3Storage(StorageBackend):
             data = json.loads(checkpoint_json)
 
             logger.debug(f"Checkpoint {checkpoint_id} loaded from S3")
-            return data
+            return data  # type: ignore[no-any-return]
 
         except Exception as e:
             logger.error(f"Failed to load checkpoint {checkpoint_id} from S3: {e}")
@@ -308,7 +308,7 @@ class GCSStorage(StorageBackend):
             data = json.loads(checkpoint_json)
 
             logger.debug(f"Checkpoint {checkpoint_id} loaded from GCS")
-            return data
+            return data  # type: ignore[no-any-return]
 
         except Exception as e:
             logger.error(f"Failed to load checkpoint {checkpoint_id} from GCS: {e}")
