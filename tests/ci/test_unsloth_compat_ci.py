@@ -73,8 +73,15 @@ class TestUnslothCompatCI:
         # CUDA availability should match PyTorch's detection
         assert info["cuda_available"] == torch.cuda.is_available()
 
-        # If CUDA is not available, device should be CPU
-        if not info["cuda_available"]:
+        # Device selection should follow the correct priority:
+        # 1. CUDA (if available)
+        # 2. MPS (if available and CUDA not available)
+        # 3. CPU (fallback)
+        if torch.cuda.is_available():
+            assert info["device"] == "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            assert info["device"] == "mps"
+        else:
             assert info["device"] == "cpu"
 
     def test_compatibility_without_unsloth(self):
