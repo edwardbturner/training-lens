@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 
-from ..integrations.huggingface_integration import HuggingFaceIntegration
-from ..utils.helpers import ensure_dir, load_file
-from ..utils.logging import get_logger
+from ...integrations.huggingface_integration import HuggingFaceIntegration
+from ...utils.helpers import ensure_dir, load_file
+from ...utils.logging import get_logger
 
 logger = get_logger(__name__)
 

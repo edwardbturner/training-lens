@@ -6,7 +6,7 @@ from typing import Optional
 
 import click
 
-from ..analysis.checkpoint_analyzer import CheckpointAnalyzer
+from ..analysis import CheckpointAnalyzer
 from ..utils.logging import get_logger
 
 logger = get_logger("training_lens.cli.analyze")
@@ -109,7 +109,7 @@ def analyze_command(
     # Add specific analyses if requested
     if gradient_analysis:
         click.echo("🔄 Performing detailed gradient analysis...")
-        from ..analysis.specialized.gradient_analyzer import GradientAnalyzer
+        from ..analysis.model.gradient_analyzer import GradientAnalyzer
 
         # Collect gradient data from all checkpoints
         all_gradient_data = {}
@@ -126,7 +126,7 @@ def analyze_command(
 
     if weight_analysis:
         click.echo("⚖️  Performing detailed weight analysis...")
-        weight_report = analyzer.analyze_weight_evolution()
+        weight_report = analyzer.analyze_adapter_weight_evolution()
         report["detailed_weight_analysis"] = weight_report
 
     if overfitting_check:
@@ -162,7 +162,7 @@ def analyze_command(
 
         # Generate gradient plots if gradient analysis was performed
         if gradient_analysis and "detailed_gradient_analysis" in report:
-            from ..analysis.specialized.gradient_analyzer import GradientAnalyzer
+            from ..analysis.model.gradient_analyzer import GradientAnalyzer
 
             all_gradient_data = {}
             for cp in analyzer.checkpoints_info:

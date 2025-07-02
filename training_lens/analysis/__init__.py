@@ -1,47 +1,86 @@
-"""Analysis module for extracting insights from LoRA training checkpoints."""
+"""Consolidated analysis module for training-lens.
 
-# Core analysis components
-from .checkpoint_analyzer import CheckpointAnalyzer
+This module provides comprehensive analysis capabilities for LoRA training,
+combining both framework-based analyzers and utility-based analysis tools.
+"""
 
-# Specialized LoRA analysis components
+# Core analysis framework
+from .core.base import DataAnalyzer, DataType
+
+# Training process analysis (from analyzers/)
 try:
-    from .specialized import (
-        GradientAnalyzer,
-        WeightAnalyzer,
-        StandardReports,
-        LoRAActivationTracker,
-        LoRAParameterAnalyzer,
-    )
+    from .training.convergence import ConvergenceAnalyzer
+    from .training.checkpoint import CheckpointAnalyzer
 except ImportError:
-    # Graceful fallback if specialized modules are not available
-    GradientAnalyzer = None
-    WeightAnalyzer = None
-    StandardReports = None
-    LoRAActivationTracker = None
-    LoRAParameterAnalyzer = None
+    ConvergenceAnalyzer = None
+    CheckpointAnalyzer = None
 
-# Optional analysis components
+# Model analysis (from analyzers/)
 try:
-    from .activation_analyzer import ActivationAnalyzer, ActivationExtractor
-    from .activation_visualizer import ActivationVisualizer
+    from .model.similarity import SimilarityAnalyzer
+except ImportError:
+    SimilarityAnalyzer = None
+
+# Adapter-specific analysis (enhanced from both directories)
+try:
+    from .adapters.lora_analyzer import LoRAAnalyzer
+except ImportError:
+    LoRAAnalyzer = None
+
+# Activation analysis (both framework and utility approaches)
+try:
+    from .activation.analyzer import ActivationAnalyzer
+    from .activation.extractor import ActivationExtractor
+    from .activation.visualizer import ActivationVisualizer
 except ImportError:
     ActivationAnalyzer = None
     ActivationExtractor = None
     ActivationVisualizer = None
 
+# Specialized analysis tools
+try:
+    from .model.gradient_analyzer import GradientAnalyzer
+    from .model.weight_analyzer import WeightAnalyzer
+    from .adapters.lora_tracker import LoRAActivationTracker, LoRAParameterAnalyzer
+except ImportError:
+    GradientAnalyzer = None
+    WeightAnalyzer = None
+    LoRAActivationTracker = None
+    LoRAParameterAnalyzer = None
+
+# Reporting and visualization
+try:
+    from .reporting.reports import StandardReports
+    from .reporting.loss_analysis import LossFunction
+except ImportError:
+    StandardReports = None
+    LossFunction = None
+
 __all__ = [
-    # Core LoRA analysis
-    "CheckpointAnalyzer",
-    "StandardReports",
+    # Core framework
+    "DataAnalyzer",
+    "DataType",
     
-    # Specialized LoRA analysis
-    "GradientAnalyzer",
+    # Training analysis
+    "ConvergenceAnalyzer",
+    "CheckpointAnalyzer",
+    
+    # Model analysis
+    "SimilarityAnalyzer",
+    "GradientAnalyzer", 
     "WeightAnalyzer",
+    
+    # Adapter analysis
+    "LoRAAnalyzer",
     "LoRAActivationTracker",
     "LoRAParameterAnalyzer",
     
-    # Optional analysis components
+    # Activation analysis
     "ActivationAnalyzer",
-    "ActivationExtractor", 
+    "ActivationExtractor",
     "ActivationVisualizer",
+    
+    # Reporting
+    "StandardReports",
+    "LossFunction",
 ]

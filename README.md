@@ -6,7 +6,28 @@ A LoRA-focused library for interpreting and analyzing fine-tuning training runs 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Unsloth](https://img.shields.io/badge/Powered%20by-Unsloth-green.svg)](https://github.com/unslothai/unsloth)
 
-Training Lens provides deep insights into how **LoRA adapters** evolve during training through comprehensive checkpoint analysis, real-time gradient monitoring, and automated reporting. Optimized for LoRA training with Unsloth for maximum efficiency. Built for researchers, ML engineers, and anyone who wants to understand what's happening inside their LoRA adapter training.
+Training Lens provides deep insights into how **LoRA adapters** evolve during training through (a) **comprehensive data gathering and storage** during training runs, and (b) **flexible analysis infrastructure** for both automated analysis and custom data exploration. Optimized for LoRA training with Unsloth for maximum efficiency.
+
+## 🔄 Architecture Overview
+
+**Training Lens operates in two distinct phases:**
+
+### Phase 1: Data Gathering & Storage
+During training, the package automatically collects and stores raw training data:
+- **Core Training Wrapper** (`training_lens/training/wrapper.py`) orchestrates the entire training process
+- **Metrics Collector** (`training_lens/training/metrics_collector.py`) captures LoRA-specific metrics at each training step
+- **Specialized Collectors** (`training_lens/collectors/`) gather specific data types:
+  - `adapter_weights.py` - LoRA A/B matrix snapshots
+  - `adapter_gradients.py` - Gradient flow through adapters
+  - `activations.py` - Layer activation patterns
+- **Checkpoint Manager** (`training_lens/training/checkpoint_manager.py`) handles efficient storage of collected data
+
+### Phase 2: Analysis & Exploration
+After training, the package provides multiple ways to analyze the collected data:
+- **Extensible Analysis Framework** (`training_lens/analysis/core/base.py`) supports both standard and custom analysis
+- **Standard Analysis Components** provide common LoRA insights out-of-the-box
+- **Raw Data Access** allows researchers to implement custom analysis functions
+- **CLI Tools** (`training_lens/cli/`) offer immediate analysis without coding
 
 ## ✨ Features
 
@@ -34,6 +55,78 @@ git clone https://github.com/training-lens/training-lens.git
 cd training-lens
 pip install -e ".[dev]"
 git config core.hooksPath .githooks
+```
+
+## 📊 Data Gathering & Analysis Workflows
+
+### Data Gathering During Training
+Training Lens automatically captures comprehensive data during your LoRA training runs:
+
+```python
+from training_lens import TrainingWrapper
+from training_lens.training.config import TrainingConfig
+
+# Configure what data to collect during training
+config = TrainingConfig(
+    model_name="unsloth/llama-2-7b-bnb-4bit",
+    
+    # Data collection settings
+    capture_adapter_gradients=True,    # Gradient flow through LoRA layers
+    capture_adapter_weights=True,      # LoRA A/B matrix snapshots
+    capture_lora_activations=True,     # Activation patterns
+    
+    # Storage settings
+    checkpoint_interval=100,           # Save data every 100 steps
+    upload_adapter_weights=True,       # Include in checkpoints
+    upload_gradients=True,             # Include gradient data
+)
+
+# Training automatically collects and stores data
+wrapper = TrainingWrapper(config)
+results = wrapper.train(dataset)
+# → Raw training data saved to ./training_output/checkpoints/
+```
+
+### Analysis After Training
+After training, access your data through multiple pathways:
+
+**Option 1: Standard Analysis (Automated)**
+```python
+from training_lens.analysis import CheckpointAnalyzer, StandardReports
+
+# Analyze collected data with built-in functions
+analyzer = CheckpointAnalyzer("./training_output/checkpoints")
+reports = StandardReports(analyzer)
+
+# Generate standard LoRA analysis reports
+summary = reports.generate_executive_summary()
+technical_report = reports.generate_technical_report()
+```
+
+**Option 2: Raw Data Access (Custom Analysis)**
+```python
+from training_lens.analysis.core import CollectionManager, DataType
+
+# Access raw training data for custom analysis
+manager = CollectionManager()
+raw_data = manager.load_checkpoint_data("./training_output/checkpoints")
+
+# Access specific data types
+adapter_weights = raw_data[DataType.ADAPTER_WEIGHTS]
+gradients = raw_data[DataType.ADAPTER_GRADIENTS] 
+activations = raw_data[DataType.ACTIVATIONS]
+
+# Implement your custom analysis functions
+def my_custom_analysis(adapter_weights, gradients):
+    # Your research code here
+    return analysis_results
+```
+
+**Option 3: CLI Analysis (No Coding)**
+```bash
+# Immediate analysis via command line
+training-lens analyze ./training_output/checkpoints --lora-focus --include-plots
+training-lens export ./checkpoints --format csv --data-type adapter_weights
 ```
 
 ## 📋 Quick Start

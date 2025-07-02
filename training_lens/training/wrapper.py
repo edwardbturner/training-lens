@@ -9,13 +9,9 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import torch
 from datasets import Dataset
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    DataCollatorForLanguageModeling,
-    Trainer,
-    TrainingArguments,
-)
+from transformers.data.data_collator import DataCollatorForLanguageModeling
+from transformers.trainer import Trainer
+from transformers.training_args import TrainingArguments
 from unsloth import FastLanguageModel, is_bfloat16_supported
 
 from ..integrations.huggingface_integration import HuggingFaceIntegration
@@ -27,8 +23,8 @@ from .config import CheckpointMetadata, TrainingConfig
 from .metrics_collector import MetricsCollector
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, PreTrainedTokenizer  # noqa: F401
-
+    from transformers.modeling_utils import PreTrainedModel  # noqa: F401
+    from transformers.tokenization_utils import PreTrainedTokenizer  # noqa: F401
 
 
 logger = get_logger(__name__)
@@ -106,7 +102,7 @@ class TrainingWrapper:
 
         # Use Unsloth for LoRA training (training_lens is now LoRA-only)
         unsloth_config = self.config.get_unsloth_config()
-        
+
         self.model, self.tokenizer = FastLanguageModel.from_pretrained(
             model_name=self.config.model_name,
             max_seq_length=unsloth_config["max_seq_length"],

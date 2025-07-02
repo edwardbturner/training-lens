@@ -17,7 +17,7 @@ from .training import TrainingWrapper, TrainingConfig, CheckpointManager, Metric
 from .analysis import CheckpointAnalyzer, StandardReports
 try:
     from .analysis import GradientAnalyzer, WeightAnalyzer, ActivationAnalyzer, ActivationExtractor, ActivationVisualizer
-    from .analysis.specialized.lora_analyzer import LoRAActivationTracker, LoRAParameterAnalyzer
+    from .analysis.adapters.lora_tracker import LoRAActivationTracker, LoRAParameterAnalyzer
 except ImportError:
     # Graceful fallback if specialized modules are not available
     GradientAnalyzer = None

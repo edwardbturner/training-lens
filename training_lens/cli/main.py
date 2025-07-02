@@ -5,10 +5,10 @@ from pathlib import Path
 import click
 
 from ..utils.logging import get_logger, setup_logging
+from .activations import activations
 from .analyze import analyze_command
 from .export import export_command
 from .train import train_command
-from .activations import activations
 
 # Setup logging
 setup_logging("INFO")
@@ -170,7 +170,7 @@ def summary(checkpoint_dir: str, output_format: str, output: str) -> None:
     import pandas as pd
     import yaml
 
-    from ..analysis.checkpoint_analyzer import CheckpointAnalyzer
+    from ..analysis import CheckpointAnalyzer
 
     analyzer = CheckpointAnalyzer(checkpoint_dir)
 

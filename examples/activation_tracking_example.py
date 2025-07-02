@@ -11,7 +11,6 @@ from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from training_lens import (
     ActivationAnalyzer,
-    ActivationExtractor,
     ActivationStorage,
     ActivationVisualizer,
     LoRAActivationTracker,

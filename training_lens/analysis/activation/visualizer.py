@@ -6,6 +6,8 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
+from ...utils.logging import get_logger
+
 try:
     import matplotlib.pyplot as plt
     import seaborn as sns
@@ -18,16 +20,14 @@ except ImportError:
     warnings.warn("Matplotlib/Seaborn not available. Visualization features will be limited.")
 
 try:
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go  # type: ignore
+    from plotly.subplots import make_subplots  # type: ignore
 
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
     warnings.warn("Plotly not available. Interactive plots will be disabled.")
 
-from ..utils.helpers import ensure_dir
-from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -375,7 +375,7 @@ class ActivationVisualizer:
 
         # Set ticks and labels
         ax.set_xticks(range(len(steps)))
-        ax.set_xticklabels(steps, rotation=45)
+        ax.set_xticklabels([str(step) for step in steps], rotation=45)
         ax.set_yticks(range(len(activation_names)))
         ax.set_yticklabels(activation_names)
 
@@ -442,9 +442,11 @@ class ActivationVisualizer:
             axes = [axes]
         elif n_rows == 1:
             axes = axes.reshape(1, -1)
+        else:
+            axes = axes.flatten()
 
         for i, (module_name, data) in enumerate(contribution_data.items()):
-            ax = axes.flatten()[i]
+            ax = axes[i]
 
             ax.plot(steps, data["lora_contribution"], marker="o", label="LoRA", color="red", linewidth=2)
             ax.plot(steps, data["main_path_contribution"], marker="s", label="Main Path", color="blue", linewidth=2)
@@ -457,8 +459,8 @@ class ActivationVisualizer:
             ax.set_ylim(0, 1)
 
         # Hide unused subplots
-        for i in range(n_modules, len(axes.flatten())):
-            axes.flatten()[i].set_visible(False)
+        for i in range(n_modules, len(axes)):
+            axes[i].set_visible(False)
 
         plt.tight_layout()
 
@@ -535,12 +537,15 @@ class ActivationVisualizer:
         parts = ax.violinplot(distributions, positions=positions, showmeans=True, showmedians=True)
 
         # Customize colors
-        for pc in parts["bodies"]:
-            pc.set_facecolor("lightblue")
-            pc.set_alpha(0.7)
+        if "bodies" in parts:
+            bodies = parts["bodies"]
+            # bodies is a list of PolyCollection objects
+            for pc in bodies:  # type: ignore
+                pc.set_facecolor("lightblue")
+                pc.set_alpha(0.7)
 
         ax.set_xticks(positions)
-        ax.set_xticklabels(steps, rotation=45)
+        ax.set_xticklabels([str(step) for step in steps], rotation=45)
         ax.set_xlabel("Training Step")
         ax.set_ylabel("Activation Value")
         ax.set_title(f"Distribution Evolution: {activation_name}")
@@ -639,10 +644,10 @@ class ActivationVisualizer:
                 if act_name in similarity_data[step]:
                     similarity_matrix[i, j] = similarity_data[step][act_name]
 
-        im = ax.imshow(similarity_matrix.T, cmap="RdYlBu_r", aspect="auto")
+        ax.imshow(similarity_matrix.T, cmap="RdYlBu_r", aspect="auto")
 
         ax.set_xticks(range(0, len(steps), max(1, len(steps) // 5)))
-        ax.set_xticklabels([steps[i] for i in range(0, len(steps), max(1, len(steps) // 5))])
+        ax.set_xticklabels([str(steps[i]) for i in range(0, len(steps), max(1, len(steps) // 5))])
         ax.set_yticks(range(len(activation_names)))
         ax.set_yticklabels([name[:15] + "..." if len(name) > 15 else name for name in activation_names])
 

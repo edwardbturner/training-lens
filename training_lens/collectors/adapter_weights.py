@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 import torch
 
 from ..core.base import DataCollector, DataType
+from ..utils.lora_utils import get_lora_components_per_layer, LoRAComponentError
 
 
 class AdapterWeightsCollector(DataCollector):
@@ -33,7 +34,7 @@ class AdapterWeightsCollector(DataCollector):
         Args:
             model: Model with LoRA adapters
             step: Current training step
-            **kwargs: Additional context
+            **kwargs: Additional context (may include repo_id for external loading)
             
         Returns:
             Dictionary containing adapter weights
@@ -44,6 +45,25 @@ class AdapterWeightsCollector(DataCollector):
         adapter_weights = {}
         adapter_name = self.config.get("adapter_name", "default")
         
+        # Try robust external loading if repo_id provided
+        repo_id = kwargs.get("repo_id")
+        if repo_id:
+            try:
+                external_components = self._collect_from_repo(repo_id, **kwargs)
+                if external_components:
+                    return {
+                        'step': step,
+                        'adapter_name': adapter_name,
+                        'adapter_weights': external_components,
+                        'total_adapters': len(external_components),
+                        'collection_timestamp': torch.tensor(step, dtype=torch.float32),
+                        'source': 'external_repo',
+                    }
+            except LoRAComponentError as e:
+                # Fall back to model inspection if external loading fails
+                self.logger.warning(f"External LoRA loading failed, using model inspection: {e}")
+        
+        # Standard model inspection approach
         for name, module in model.named_modules():
             if hasattr(module, 'lora_A') and hasattr(module, 'lora_B'):
                 if (isinstance(module.lora_A, dict) and adapter_name in module.lora_A and
@@ -52,10 +72,10 @@ class AdapterWeightsCollector(DataCollector):
                     lora_A = module.lora_A[adapter_name]
                     lora_B = module.lora_B[adapter_name]
                     
-                    # Extract weight data
+                    # Extract weight data using the same format as robust utils
                     weights_data = {
-                        'A_weight': lora_A.weight.data.clone().cpu(),
-                        'B_weight': lora_B.weight.data.clone().cpu(),
+                        'lora_A': lora_A.weight.data.clone().cpu(),
+                        'lora_B': lora_B.weight.data.clone().cpu(),
                         'shape_A': list(lora_A.weight.shape),
                         'shape_B': list(lora_B.weight.shape),
                         'dtype': str(lora_A.weight.dtype),
@@ -90,9 +110,34 @@ class AdapterWeightsCollector(DataCollector):
                 'adapter_weights': adapter_weights,
                 'total_adapters': len(adapter_weights),
                 'collection_timestamp': torch.tensor(step, dtype=torch.float32),
+                'source': 'model_inspection',
             }
         
         return None
+    
+    def _collect_from_repo(self, repo_id: str, **kwargs) -> Dict[str, Any]:
+        """Collect LoRA components from external repository using robust loading.
+        
+        Args:
+            repo_id: HuggingFace repository ID
+            **kwargs: Additional arguments (subfolder, revision, etc.)
+            
+        Returns:
+            Dictionary of LoRA components
+        """
+        subfolder = kwargs.get("subfolder")
+        revision = kwargs.get("revision", "main")
+        layer_filter = self.config.get("layer_filter")
+        
+        components = get_lora_components_per_layer(
+            repo_id=repo_id,
+            subfolder=subfolder,
+            revision=revision,
+            layer_filter=layer_filter,
+            force_download=kwargs.get("force_download", False),
+        )
+        
+        return components
     
     def _has_lora_adapters(self, model: torch.nn.Module) -> bool:
         """Check if model has LoRA adapters."""

@@ -70,12 +70,18 @@ class MetricsCollector:
         self.optimizer = optimizer
 
         # Get LoRA adapter parameter names
-        self.lora_layer_names = [name for name, param in model.named_parameters() 
-                                if param.requires_grad and ('lora' in name.lower() or 'adapter' in name.lower())]
-        
+        self.lora_layer_names = [
+            name
+            for name, param in model.named_parameters()
+            if param.requires_grad and ("lora" in name.lower() or "adapter" in name.lower())
+        ]
+
         total_trainable = sum(1 for name, param in model.named_parameters() if param.requires_grad)
-        
-        logger.info(f"MetricsCollector setup with {len(self.lora_layer_names)} LoRA layers out of {total_trainable} trainable layers")
+
+        logger.info(
+            f"MetricsCollector setup with {len(self.lora_layer_names)} LoRA layers out of {total_trainable} trainable "
+            "layers"
+        )
 
     def collect_step_metrics(
         self,
@@ -136,7 +142,7 @@ class MetricsCollector:
         adapter_total_norm = 0.0
         adapter_layer_norms = {}
         adapter_gradient_vector: List[float] = []
-        
+
         # Base model gradient norms for comparison
         base_total_norm = 0.0
         base_layer_norms = {}
@@ -144,8 +150,8 @@ class MetricsCollector:
         for name, param in model.named_parameters():
             if param.grad is not None and param.requires_grad:
                 param_norm = param.grad.data.norm(2).item()
-                
-                if 'lora' in name.lower() or 'adapter' in name.lower():
+
+                if "lora" in name.lower() or "adapter" in name.lower():
                     # LoRA adapter parameters
                     adapter_total_norm += param_norm**2
                     adapter_layer_norms[name] = param_norm
@@ -158,7 +164,7 @@ class MetricsCollector:
 
         adapter_total_norm = adapter_total_norm**0.5
         base_total_norm = base_total_norm**0.5
-        
+
         gradient_metrics["adapter_grad_norm"] = adapter_total_norm
         gradient_metrics["base_grad_norm"] = base_total_norm
         gradient_metrics["adapter_layer_grad_norms"] = adapter_layer_norms
@@ -177,7 +183,7 @@ class MetricsCollector:
 
             # Store LoRA adapter layer-wise gradients
             for name, param in model.named_parameters():
-                if param.grad is not None and ('lora' in name.lower() or 'adapter' in name.lower()):
+                if param.grad is not None and ("lora" in name.lower() or "adapter" in name.lower()):
                     layer_grad_norm = param.grad.data.norm(2).item()
                     self.adapter_gradients[name].append(layer_grad_norm)
 
@@ -192,7 +198,7 @@ class MetricsCollector:
         adapter_weight_norms: Dict[str, float] = {}
         adapter_weight_means: Dict[str, float] = {}
         adapter_weight_stds: Dict[str, float] = {}
-        
+
         # Base model weight statistics for comparison
         base_total_weights = 0
         base_weight_norms: Dict[str, float] = {}
@@ -203,8 +209,8 @@ class MetricsCollector:
                 weight_norm = weight_data.norm(2).item()
                 weight_mean = weight_data.mean().item()
                 weight_std = weight_data.std().item()
-                
-                if 'lora' in name.lower() or 'adapter' in name.lower():
+
+                if "lora" in name.lower() or "adapter" in name.lower():
                     # LoRA adapter parameters
                     adapter_weight_norms[name] = weight_norm
                     adapter_weight_means[name] = weight_mean
@@ -223,8 +229,13 @@ class MetricsCollector:
         weight_metrics["base_weight_norms"] = base_weight_norms
 
         # Overall LoRA adapter weight statistics
-        adapter_weights = torch.cat([param.data.flatten() for name, param in model.named_parameters() 
-                                   if param.requires_grad and ('lora' in name.lower() or 'adapter' in name.lower())])
+        adapter_weights = torch.cat(
+            [
+                param.data.flatten()
+                for name, param in model.named_parameters()
+                if param.requires_grad and ("lora" in name.lower() or "adapter" in name.lower())
+            ]
+        )
         if len(adapter_weights) > 0:
             weight_metrics["adapter_overall_norm"] = adapter_weights.norm(2).item()
             weight_metrics["adapter_overall_mean"] = adapter_weights.mean().item()
@@ -310,7 +321,7 @@ class MetricsCollector:
             "upload_adapter_weights": self.upload_adapter_weights,
             "upload_gradients": self.upload_gradients,
         }
-        
+
     def get_checkpoint_data(self) -> Dict[str, Any]:
         """Get data to save with checkpoints (backward compatibility).
 
@@ -352,10 +363,14 @@ class MetricsCollector:
         # Training progress metrics
         train_losses = [self.step_metrics[step].get("train_loss", 0) for step in steps]
         adapter_grad_norms = [
-            self.step_metrics[step].get("adapter_grad_norm", 0) for step in steps if "adapter_grad_norm" in self.step_metrics[step]
+            self.step_metrics[step].get("adapter_grad_norm", 0)
+            for step in steps
+            if "adapter_grad_norm" in self.step_metrics[step]
         ]
         base_grad_norms = [
-            self.step_metrics[step].get("base_grad_norm", 0) for step in steps if "base_grad_norm" in self.step_metrics[step]
+            self.step_metrics[step].get("base_grad_norm", 0)
+            for step in steps
+            if "base_grad_norm" in self.step_metrics[step]
         ]
 
         summary = {

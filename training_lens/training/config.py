@@ -26,12 +26,12 @@ except ImportError:
         pass
 
     # Create aliases for compatibility
-    BaseModel = _FallbackBaseModel  # type: ignore[misc,no-redef,assignment]
-    field_validator = _fallback_field_validator  # type: ignore[misc,assignment]
-    ValidationError = _FallbackValidationError  # type: ignore[misc,no-redef,assignment]
+    BaseModel = _FallbackBaseModel
+    field_validator = _fallback_field_validator
+    ValidationError = _FallbackValidationError
 
 
-class TrainingConfig(BaseModel):  # type: ignore[misc]
+class TrainingConfig(BaseModel):  # type: ignore[valid-type]
     """Configuration for training runs with comprehensive validation."""
 
     # Model configuration

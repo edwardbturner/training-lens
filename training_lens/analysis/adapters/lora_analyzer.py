@@ -7,6 +7,7 @@ import numpy as np
 import torch
 
 from ..core.base import DataAnalyzer, DataType
+from ...utils.lora_utils import get_lora_components_per_layer, LoRAComponentError
 
 
 class LoRAAnalyzer(DataAnalyzer):
@@ -28,17 +29,29 @@ class LoRAAnalyzer(DataAnalyzer):
     def analyze(
         self, 
         data: Dict[DataType, Any], 
-        output_dir: Optional[Path] = None
+        output_dir: Optional[Path] = None,
+        **kwargs
     ) -> Dict[str, Any]:
         """Perform comprehensive LoRA analysis.
         
         Args:
             data: Dictionary containing collected data
             output_dir: Optional directory to save outputs
+            **kwargs: Additional arguments (may include repo_id for external analysis)
             
         Returns:
             LoRA analysis results
         """
+        # Try robust external analysis if repo_id provided
+        repo_id = kwargs.get("repo_id")
+        if repo_id:
+            try:
+                external_analysis = self._analyze_from_repo(repo_id, **kwargs)
+                if external_analysis:
+                    return external_analysis
+            except LoRAComponentError as e:
+                self.logger.warning(f"External LoRA analysis failed, using collected data: {e}")
+        
         analysis_results = {
             "adapter_weight_analysis": self._analyze_adapter_weights(data),
             "rank_utilization": self._analyze_rank_utilization(data),
@@ -436,3 +449,88 @@ class LoRAAnalyzer(DataAnalyzer):
                         f.write("step,effective_norm\n")
                         for i, norm in enumerate(norms):
                             f.write(f"{i},{norm}\n")
+    
+    def _analyze_from_repo(self, repo_id: str, **kwargs) -> Dict[str, Any]:
+        """Perform LoRA analysis from external repository using robust loading.
+        
+        Args:
+            repo_id: HuggingFace repository ID
+            **kwargs: Additional arguments (subfolder, revision, etc.)
+            
+        Returns:
+            LoRA analysis results
+        """
+        subfolder = kwargs.get("subfolder")
+        revision = kwargs.get("revision", "main")
+        layer_filter = kwargs.get("layer_filter")
+        
+        # Load components using robust utilities
+        components = get_lora_components_per_layer(
+            repo_id=repo_id,
+            subfolder=subfolder,
+            revision=revision,
+            layer_filter=layer_filter,
+            force_download=kwargs.get("force_download", False),
+        )
+        
+        if not components:
+            return {"status": "no_components_found"}
+        
+        # Perform analysis on loaded components
+        analysis_results = {
+            "source": "external_repo",
+            "repo_id": repo_id,
+            "revision": revision,
+            "total_layers": len(components),
+            "layer_analysis": {},
+            "global_statistics": {},
+        }
+        
+        # Analyze each layer
+        layer_stats = []
+        for layer_name, layer_data in components.items():
+            layer_analysis = {
+                "rank": layer_data["rank"],
+                "scaling": layer_data["scaling"],
+                "statistics": layer_data["statistics"],
+                "shape_A": layer_data["shape_A"],
+                "shape_B": layer_data["shape_B"],
+                "dtype": layer_data["dtype"],
+            }
+            
+            # Add SVD analysis for rank utilization
+            if "effective_weight" in layer_data:
+                effective_weight = layer_data["effective_weight"]
+                try:
+                    U, S, Vh = torch.svd(effective_weight)
+                    
+                    # Compute rank utilization metrics
+                    total_singular_values = len(S)
+                    effective_rank = torch.sum(S > 0.01 * S[0]).item()
+                    rank_utilization = effective_rank / total_singular_values
+                    
+                    layer_analysis["svd_analysis"] = {
+                        "singular_values": S.tolist(),
+                        "effective_rank": effective_rank,
+                        "rank_utilization": rank_utilization,
+                        "condition_number": (S[0] / S[-1]).item() if S[-1] > 1e-10 else float('inf'),
+                    }
+                except Exception as e:
+                    self.logger.warning(f"SVD analysis failed for {layer_name}: {e}")
+            
+            analysis_results["layer_analysis"][layer_name] = layer_analysis
+            layer_stats.append(layer_analysis["statistics"])
+        
+        # Compute global statistics
+        if layer_stats:
+            analysis_results["global_statistics"] = {
+                "mean_A_norm": np.mean([stats["A_norm"] for stats in layer_stats]),
+                "mean_B_norm": np.mean([stats["B_norm"] for stats in layer_stats]),
+                "mean_effective_norm": np.mean([stats["effective_norm"] for stats in layer_stats]),
+                "total_parameters": sum(
+                    np.prod(layer_data["shape_A"]) + np.prod(layer_data["shape_B"])
+                    for layer_data in components.values()
+                ),
+            }
+        
+        return analysis_results

@@ -7,7 +7,7 @@ from typing import List, Optional
 import click
 import pandas as pd
 
-from ..analysis.checkpoint_analyzer import CheckpointAnalyzer
+from ..analysis import CheckpointAnalyzer
 from ..utils.logging import get_logger
 
 logger = get_logger("training_lens.cli.export")
@@ -210,7 +210,9 @@ def _export_gradient_data(analyzer: CheckpointAnalyzer, output_dir: Path, export
     return exported_files
 
 
-def _export_weight_data(analyzer: CheckpointAnalyzer, output_dir: Path, export_format: str, compress: bool) -> List[Path]:
+def _export_weight_data(
+    analyzer: CheckpointAnalyzer, output_dir: Path, export_format: str, compress: bool
+) -> List[Path]:
     """Export weight-related data."""
     exported_files: List[Path] = []
 
@@ -295,7 +297,9 @@ def _export_weight_data(analyzer: CheckpointAnalyzer, output_dir: Path, export_f
     return exported_files
 
 
-def _export_metrics_data(analyzer: CheckpointAnalyzer, output_dir: Path, export_format: str, compress: bool) -> List[Path]:
+def _export_metrics_data(
+    analyzer: CheckpointAnalyzer, output_dir: Path, export_format: str, compress: bool
+) -> List[Path]:
     """Export general metrics data."""
     exported_files: List[Path] = []
 

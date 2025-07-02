@@ -127,7 +127,7 @@ class CheckpointManager:
 
         logger.info(f"Checkpoint saved successfully at {checkpoint_path}")
         return checkpoint_path
-        
+
     def save_lora_checkpoint(
         self,
         model: PreTrainedModel,
@@ -163,16 +163,16 @@ class CheckpointManager:
         ensure_dir(checkpoint_path)
 
         # Save only LoRA adapter weights (not full model)
-        if hasattr(model, 'save_pretrained'):
+        if hasattr(model, "save_pretrained"):
             # For PEFT models, this saves only the adapter
             model.save_pretrained(checkpoint_path / "adapter")
         else:
             # Fallback: save LoRA parameters manually
             lora_state_dict = {}
             for name, param in model.named_parameters():
-                if 'lora' in name.lower() or 'adapter' in name.lower():
+                if "lora" in name.lower() or "adapter" in name.lower():
                     lora_state_dict[name] = param.data.clone()
-            
+
             if lora_state_dict:
                 safe_save(lora_state_dict, checkpoint_path / "lora_weights.pt", format="torch")
             else:
@@ -187,12 +187,15 @@ class CheckpointManager:
             # Filter optimizer state to LoRA parameters only
             lora_param_ids = set()
             for name, param in model.named_parameters():
-                if 'lora' in name.lower() or 'adapter' in name.lower():
+                if "lora" in name.lower() or "adapter" in name.lower():
                     lora_param_ids.add(id(param))
-            
+
             filtered_optimizer_state = {
-                "state": {k: v for k, v in optimizer.state_dict()["state"].items() 
-                         if any(id(p) == k for p in model.parameters() if id(p) in lora_param_ids)},
+                "state": {
+                    k: v
+                    for k, v in optimizer.state_dict()["state"].items()
+                    if any(id(p) == k for p in model.parameters() if id(p) in lora_param_ids)
+                },
                 "param_groups": optimizer.param_groups,
             }
             safe_save(filtered_optimizer_state, checkpoint_path / "lora_optimizer.pt", format="torch")
@@ -284,7 +287,7 @@ class CheckpointManager:
         # Load additional data if exists (check both regular and LoRA-specific paths)
         additional_data_path = checkpoint_path / "additional_data.pt"
         lora_data_path = checkpoint_path / "lora_training_data.pt"
-        
+
         additional_data = None
         if lora_data_path.exists():
             additional_data = load_file(lora_data_path, format="torch")
@@ -292,8 +295,10 @@ class CheckpointManager:
             additional_data = load_file(additional_data_path, format="torch")
 
         # Determine paths based on checkpoint type
-        is_lora_checkpoint = metadata.get("checkpoint_type") == "lora_adapter" or "lora-checkpoint" in str(checkpoint_path)
-        
+        is_lora_checkpoint = metadata.get("checkpoint_type") == "lora_adapter" or "lora-checkpoint" in str(
+            checkpoint_path
+        )
+
         result = {
             "checkpoint_path": checkpoint_path,
             "tokenizer_path": checkpoint_path / "tokenizer",
@@ -303,13 +308,13 @@ class CheckpointManager:
             "additional_data": additional_data,
             "is_lora_checkpoint": is_lora_checkpoint,
         }
-        
+
         if is_lora_checkpoint:
             result["adapter_path"] = checkpoint_path / "adapter"
             result["lora_weights_path"] = checkpoint_path / "lora_weights.pt"
         else:
             result["model_path"] = checkpoint_path / "model"
-            
+
         return result
 
     def list_checkpoints(self) -> List[Dict[str, Any]]:

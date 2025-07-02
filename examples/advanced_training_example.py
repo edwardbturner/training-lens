@@ -256,7 +256,7 @@ def main():
 
             # Weight analysis
             print("\\n⚖️  Weight Analysis:")
-            weight_analysis = analyzer.analyze_weight_evolution()
+            weight_analysis = analyzer.analyze_adapter_weight_evolution()
             print(f"   Weight stability: {weight_analysis.get('weight_stability', 'unknown')}")
 
             # Training diagnostics

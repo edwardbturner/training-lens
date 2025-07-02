@@ -125,7 +125,7 @@ class HuggingFaceIntegration:
         except Exception as e:
             logger.error(f"Failed to upload checkpoint {step}: {e}")
             raise
-            
+
     def upload_lora_checkpoint(
         self,
         checkpoint_path: Union[str, Path],
@@ -162,9 +162,6 @@ class HuggingFaceIntegration:
 
         try:
             if upload_adapter_only:
-                # Only upload adapter-specific files
-                adapter_files = []
-                
                 # Check for adapter directory
                 adapter_dir = checkpoint_path / "adapter"
                 if adapter_dir.exists():
@@ -176,7 +173,7 @@ class HuggingFaceIntegration:
                         commit_message=commit_message,
                         token=self.token,
                     )
-                
+
                 # Check for standalone LoRA weights
                 lora_weights_path = checkpoint_path / "lora_weights.pt"
                 if lora_weights_path.exists():
@@ -188,7 +185,7 @@ class HuggingFaceIntegration:
                         token=self.token,
                         commit_message=commit_message,
                     )
-                
+
                 # Upload LoRA-specific training data
                 lora_training_data_path = checkpoint_path / "lora_training_data.pt"
                 if lora_training_data_path.exists():
@@ -200,7 +197,7 @@ class HuggingFaceIntegration:
                         token=self.token,
                         commit_message=f"Upload LoRA training data for step {step}",
                     )
-                
+
                 # Upload optimizer state if present
                 lora_optimizer_path = checkpoint_path / "lora_optimizer.pt"
                 if lora_optimizer_path.exists():
@@ -212,7 +209,7 @@ class HuggingFaceIntegration:
                         token=self.token,
                         commit_message=f"Upload LoRA optimizer state for step {step}",
                     )
-                    
+
                 # Upload metadata
                 metadata_path = checkpoint_path / "metadata.json"
                 if metadata_path.exists():
@@ -237,6 +234,7 @@ class HuggingFaceIntegration:
             if metadata:
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
                     import json
+
                     json.dump(metadata, f, indent=2, default=str)
                     metadata_temp_path = f.name
 
@@ -309,7 +307,12 @@ class HuggingFaceIntegration:
             repo_files = self.api.list_repo_files(self.repo_id, token=self.token)
 
             # Filter for checkpoint directories (both regular and LoRA)
-            checkpoint_files = [f for f in repo_files if f.startswith(f"{self.checkpoint_folder}/checkpoint-") or f.startswith(f"{self.checkpoint_folder}/lora-checkpoint-")]
+            checkpoint_files = [
+                f
+                for f in repo_files
+                if f.startswith(f"{self.checkpoint_folder}/checkpoint-")
+                or f.startswith(f"{self.checkpoint_folder}/lora-checkpoint-")
+            ]
 
             # Extract checkpoint steps
             checkpoints = []
@@ -344,16 +347,16 @@ class HuggingFaceIntegration:
                     try:
                         metadata_path = f"{checkpoint_dir}/training_lens_metadata.json"
                         lora_metadata_path = f"{checkpoint_dir}/training_lens_lora_metadata.json"
-                        
+
                         if metadata_path in repo_files or lora_metadata_path in repo_files:
                             checkpoint_info["has_metadata"] = True
-                            
+
                         # Check for LoRA-specific files
                         if checkpoint_type == "lora":
                             has_adapter = any(f.startswith(f"{checkpoint_dir}/adapter/") for f in repo_files)
                             has_lora_weights = f"{checkpoint_dir}/lora_weights.pt" in repo_files
                             has_lora_training_data = f"{checkpoint_dir}/lora_training_data.pt" in repo_files
-                            
+
                             checkpoint_info["has_adapter"] = has_adapter
                             checkpoint_info["has_lora_weights"] = has_lora_weights
                             checkpoint_info["has_training_data"] = has_lora_training_data

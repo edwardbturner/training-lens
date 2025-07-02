@@ -159,7 +159,7 @@ def main() -> int:
             # Demonstrate LoRA analysis
             print("\n🔍 Running post-training LoRA analysis...")
 
-            from training_lens.analysis.checkpoint_analyzer import CheckpointAnalyzer
+            from training_lens.analysis import CheckpointAnalyzer
 
             analyzer = CheckpointAnalyzer(Path(config.output_dir) / "checkpoints")
             report = analyzer.generate_standard_report()
