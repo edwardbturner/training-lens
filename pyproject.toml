@@ -38,7 +38,6 @@ requires-python = ">=3.10"
 dependencies = [
     "torch>=2.0.0",
     "transformers>=4.30.0",
-    "unsloth[cu121-ampere-torch220]>=2024.8",
     "wandb>=0.15.0",
     "huggingface-hub>=0.15.0",
     "datasets>=2.12.0",
@@ -52,6 +51,7 @@ dependencies = [
     "tqdm>=4.64.0",
     "psutil>=5.9.0",
     "scikit-learn>=1.0.0",
+    "peft>=0.7.0",  # Add PEFT as core dependency for LoRA support
 ]
 
 [project.optional-dependencies]
@@ -65,8 +65,12 @@ dev = [
     "pre-commit>=3.0.0",
     "pandas-stubs>=2.0.0",
 ]
-unsloth = [
+# Platform-specific Unsloth installations
+unsloth-cuda = [
     "unsloth[cu121-ampere-torch220]>=2024.8",
+]
+unsloth-cpu = [
+    "unsloth>=2024.8",
 ]
 docs = [
     "sphinx>=5.0.0",

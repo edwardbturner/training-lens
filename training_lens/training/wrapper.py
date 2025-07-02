@@ -1,8 +1,5 @@
 """Main training wrapper for comprehensive monitoring and analysis."""
 
-# Import unsloth before transformers for optimizations
-import unsloth  # noqa: F401, isort: skip
-
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
@@ -12,7 +9,13 @@ from datasets import Dataset
 from transformers.data.data_collator import DataCollatorForLanguageModeling
 from transformers.trainer import Trainer
 from transformers.training_args import TrainingArguments
-from unsloth import FastLanguageModel, is_bfloat16_supported
+
+from ..utils.unsloth_compat import (
+    load_model_and_tokenizer,
+    get_peft_model_wrapper,
+    is_bfloat16_supported,
+    get_backend_info,
+)
 
 from ..integrations.huggingface_integration import HuggingFaceIntegration
 from ..integrations.wandb_integration import WandBIntegration
@@ -95,42 +98,35 @@ class TrainingWrapper:
         self.logger.print_banner("Training Lens Initialized")
         self.logger.info(f"Device: {self.device}")
         self.logger.info(f"Output directory: {config.output_dir}")
+        
+        # Log backend info
+        backend_info = get_backend_info()
+        self.logger.info(f"Backend: {'Unsloth' if backend_info['unsloth_available'] else 'PEFT'}")
+        self.logger.info(f"BF16 Support: {backend_info['bfloat16_supported']}")
 
     def setup_model_and_tokenizer(self) -> None:
         """Set up model and tokenizer based on configuration."""
         self.logger.info(f"Loading model: {self.config.model_name}")
 
-        # Use Unsloth for LoRA training (training_lens is now LoRA-only)
+        # Load model and tokenizer using compatibility layer
         unsloth_config = self.config.get_unsloth_config()
 
-        self.model, self.tokenizer = FastLanguageModel.from_pretrained(
+        self.model, self.tokenizer = load_model_and_tokenizer(
             model_name=self.config.model_name,
             max_seq_length=unsloth_config["max_seq_length"],
             dtype=unsloth_config["dtype"],
             load_in_4bit=unsloth_config["load_in_4bit"],
         )
 
-        # Set up LoRA configuration with Unsloth
-        self.model = FastLanguageModel.get_peft_model(
+        # Set up LoRA configuration
+        self.model = get_peft_model_wrapper(
             self.model,
             r=self.config.lora_r,
-            target_modules=self.config.target_modules
-            or [
-                "q_proj",
-                "k_proj",
-                "v_proj",
-                "o_proj",
-                "gate_proj",
-                "up_proj",
-                "down_proj",
-            ],
+            target_modules=self.config.target_modules,
             lora_alpha=self.config.lora_alpha,
             lora_dropout=self.config.lora_dropout,
-            bias="none",
             use_gradient_checkpointing="unsloth",
             random_state=3407,
-            use_rslora=False,
-            loftq_config=None,
         )
 
         # Set up tokenizer
