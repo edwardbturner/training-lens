@@ -1,11 +1,11 @@
 """CI-specific tests for configuration handling using lightweight fixtures."""
 
-import pytest
-from pathlib import Path
 import json
 
-from training_lens.config.training_config import TrainingConfig
+import pytest
+
 from training_lens.config.lora_config import LoRAConfig
+from training_lens.config.training_config import TrainingConfig
 from training_lens.training.config import CheckpointMetadata
 
 

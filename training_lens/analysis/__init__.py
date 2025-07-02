@@ -9,8 +9,8 @@ from .core.base import DataAnalyzer, DataType
 
 # Training process analysis (from analyzers/)
 try:
-    from .training.convergence import ConvergenceAnalyzer
     from .training.checkpoint import CheckpointAnalyzer
+    from .training.convergence import ConvergenceAnalyzer
 except ImportError:
     ConvergenceAnalyzer = None
     CheckpointAnalyzer = None
@@ -39,9 +39,9 @@ except ImportError:
 
 # Specialized analysis tools
 try:
+    from .adapters.lora_tracker import LoRAActivationTracker, LoRAParameterAnalyzer
     from .model.gradient_analyzer import GradientAnalyzer
     from .model.weight_analyzer import WeightAnalyzer
-    from .adapters.lora_tracker import LoRAActivationTracker, LoRAParameterAnalyzer
 except ImportError:
     GradientAnalyzer = None
     WeightAnalyzer = None
@@ -50,8 +50,8 @@ except ImportError:
 
 # Reporting and visualization
 try:
-    from .reporting.reports import StandardReports
     from .reporting.loss_analysis import LossFunction
+    from .reporting.reports import StandardReports
 except ImportError:
     StandardReports = None
     LossFunction = None

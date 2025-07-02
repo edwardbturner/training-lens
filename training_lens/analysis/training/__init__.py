@@ -1,8 +1,8 @@
 """Training process analysis components."""
 
 try:
-    from .convergence import ConvergenceAnalyzer
     from .checkpoint import CheckpointAnalyzer
+    from .convergence import ConvergenceAnalyzer
 except ImportError:
     ConvergenceAnalyzer = None
     CheckpointAnalyzer = None

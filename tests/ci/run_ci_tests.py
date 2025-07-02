@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """Run CI-specific tests with appropriate configuration."""
 
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 

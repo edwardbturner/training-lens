@@ -1,9 +1,10 @@
 """Lightweight fixtures for CI testing without heavy dependencies."""
 
+from typing import Any, Dict
+
 import pytest
 import torch
 import torch.nn as nn
-from typing import Dict, Any
 
 
 @pytest.fixture
